@@ -1,8 +1,8 @@
-var textures = null; // TODO: per-block texture mapping
+var textures = null;
 var env = null;
 
 function init(){
-	env = new Environment("canvas"); // TODO: limit who accesses this
+	env = new Environment("canvas");
 	env.scale = 100;
 
 	textures = new Image();
@@ -18,6 +18,7 @@ function texturesLoaded(){
 function handleMousePerspective(event){
 	env.clear();
 
+	// TODO: click to drag rotation rather than on move
 	Mouse.get(event);
 	var ax = -(2*Math.PI) * Mouse.y/env.canvas.height;
 	var ay = -(2*Math.PI) * Mouse.x/env.canvas.width;
@@ -29,6 +30,10 @@ function render(rotationAroundX, rotationAroundY){
 	env.transform.rotateX(rotationAroundX);
 	env.transform.rotateY(rotationAroundY);
 	env.commitTransform();
+
+
+	// TODO: store blocks in persistent graph
+	// rather than recreate every frame
 
 	var texture = new BlockTexture(textures, 0,0,100,100);
 
@@ -62,6 +67,7 @@ function Environment(canvasId){
 	this.origin = new Point2D(this.canvas.width/2, this.canvas.height/2);
 	this.transform = new Matrix3D();
 	this.faces = [];
+	this.faceIndices = [];
 }
 
 Environment.isFaceFrontFacing = function(m){
@@ -84,10 +90,11 @@ Environment.prototype.commitTransform = function(){
 		new Matrix2D( t.c,t.f,   t.b,t.e,  0,0)
 	];
 
+	this.faceIndices = [];
 	var i = this.faces.length;
 	while (i--){
-		if (!Environment.isFaceFrontFacing( this.faces[i] )){
-			this.faces[i] = null;
+		if (Environment.isFaceFrontFacing( this.faces[i] )){
+			this.faceIndices.push(i);
 		}
 	}
 };
@@ -119,18 +126,14 @@ Block.prototype.place = function(){
 };
 
 Block.prototype.draw = function(){
-	var i = env.faces.length;
+	var i = env.faceIndices.length;
 	while (i--){
-		this.drawSide(i);
+		this.drawFace( env.faceIndices[i] );
 	}
 };
 
-Block.prototype.drawSide = function(index){
+Block.prototype.drawFace = function(index){
 	var m = env.faces[index];
-	if (!m){
-		return;
-	}
-
 	var x = this.offset.x + env.origin.x + m.x * env.scale;
 	var y = this.offset.y + env.origin.y + m.y * env.scale;
 	env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
