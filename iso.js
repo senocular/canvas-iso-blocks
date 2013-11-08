@@ -1,13 +1,9 @@
-var canvas = document.getElementById("canvas"); // TODO: manage canvas in env
-var context = canvas.getContext("2d");
-var scale = 100; // TODO: more granular control over sizing
 var texture = null; // TODO: per-block texture mapping
 var env = null;
 
 function init(){
-	env = new Environment();
-	env.origin.x = canvas.width/2;
-	env.origin.y = canvas.height/2;
+	env = new Environment("canvas");
+	env.scale = 100;
 
 	texture = new Image();
 	texture.onload = imageLoaded;
@@ -16,30 +12,30 @@ function init(){
 
 function imageLoaded(){
 	canvas.addEventListener("mousemove", handleMousePerspective);
+	render(0, 0);
 }
 
 function handleMousePerspective(event){
-	clear();
+	env.clear();
 
 	Mouse.get(event);
-	var ay = -(2*Math.PI) * Mouse.x/canvas.width;
-	var ax = -(2*Math.PI) * Mouse.y/canvas.height;
-
-	env.transform.identity();
-	env.transform.rotateX(ax);
-	env.transform.rotateY(ay);
-
-	drawBlocks([
-		new Block(new Point3D(0,0,0)).place(),
-		new Block(new Point3D(1,0,0)).place(),
-		new Block(new Point3D(-1,0,0)).place(),
-		new Block(new Point3D(1,1,0)).place()
-	]);
+	var ax = -(2*Math.PI) * Mouse.y/env.canvas.height;
+	var ay = -(2*Math.PI) * Mouse.x/env.canvas.width;
+	render(ax, ay);
 }
 
-function clear(){
-	context.setTransform(1,0,0,1,0,0);
-	context.clearRect(0,0,canvas.width,canvas.height);
+function render(rotationAroundX, rotationAroundY){
+	env.transform.identity();
+	env.transform.rotateX(rotationAroundX);
+	env.transform.rotateY(rotationAroundY);
+	env.commitTransform();
+
+	drawBlocks([
+		new Block(new Point3D( 0,0,0)).place(),
+		new Block(new Point3D( 1,0,0)).place(),
+		new Block(new Point3D(-1,0,0)).place(),
+		new Block(new Point3D( 1,1,0)).place()
+	]);
 }
 
 function drawBlocks(blocks){
@@ -58,10 +54,42 @@ function sortOnOffsetZ(a, b){
 		CLASSES
 /********************/
 
-function Environment(){
+function Environment(canvasId){
+	this.canvas = document.getElementById(canvasId);
+	this.context = this.canvas.getContext("2d");
+	this.origin = new Point2D(this.canvas.width/2, this.canvas.height/2);
 	this.transform = new Matrix3D();
-	this.origin = new Point2D();
+	this.faces = [];
 }
+
+Environment.isFaceFrontFacing = function(m){
+	return m.a*m.d - m.b*m.c > 0;
+};
+
+Environment.prototype.clear = function(){
+	this.context.setTransform(1,0,0,1,0,0);
+	this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+};
+
+Environment.prototype.commitTransform = function(){
+	var t = this.transform;
+	this.faces = [
+		new Matrix2D( t.a,t.d,   t.c,t.f,  0,0),
+		new Matrix2D( t.a,t.d,  -t.c,-t.f, t.b+t.c,t.e+t.f),
+		new Matrix2D( t.a,t.d,   t.b,t.e,  t.c,t.f),
+		new Matrix2D(-t.c,-t.f,  t.b,t.e,  t.a+t.c,t.d+t.f),
+		new Matrix2D(-t.a,-t.d,  t.b,t.e,  t.a,t.d),
+		new Matrix2D( t.c,t.f,   t.b,t.e,  0,0)
+	];
+
+	var i = this.faces.length;
+	while (i--){
+		if (!Environment.isFaceFrontFacing( this.faces[i] )){
+			this.faces[i] = null;
+		}
+	}
+
+};
 
 function Block(loc){
 	this.loc = loc;
@@ -71,46 +99,31 @@ function Block(loc){
 Block.prototype.place = function(){
 	this.offset.copy(this.loc);
 	env.transform.transformPoint(this.offset);
-	this.offset.scale(scale);
+	this.offset.scale(env.scale);
 	return this;
 };
 
 Block.prototype.draw = function(){
-	var r = env.transform;
-
-	// TODO: pre-calc once in env
-	var top1    = new Matrix2D(r.a,r.d,   r.c,r.f,  0,0);
-	var bottom2 = new Matrix2D(r.a,r.d,  -r.c,-r.f, r.c+r.b,r.f+r.e);
-	var side3   = new Matrix2D(r.a,r.d,   r.b,r.e,  r.c,r.f);
-	var side4   = new Matrix2D(-r.c,-r.f, r.b,r.e,  r.a+r.c,r.d+r.f);
-	var side5   = new Matrix2D(-r.a,-r.d, r.b,r.e,  r.a,r.d);
-	var side6   = new Matrix2D(r.c,r.f,   r.b,r.e,  0,0);
-
-	this.drawTexture(1, top1);
-	this.drawTexture(2, bottom2);
-	this.drawTexture(3, side3);
-	this.drawTexture(4, side4);
-	this.drawTexture(5, side5);
-	this.drawTexture(6, side6);
+	var i = env.faces.length;
+	while (i--){
+		this.drawSide(i);
+	}
 };
 
-Block.prototype.drawTexture = function(side, m){
-
-	// TODO: pre-calc faces to draw in env
-	var magnitude = m.a*m.d - m.b*m.c;
-	var isFrontFracing = magnitude > 0;
-
-	if (isFrontFracing){
-
-		// TODO: need texture size vs scale here; scale is temp, 
-		// but may be needed to alter texture size to fit
-		var x = this.offset.x + env.origin.x + m.x * scale;
-		var y = this.offset.y + env.origin.y + m.y * scale;
-		var srcX = (side - 1) * scale; 
-		context.setTransform(m.a, m.b, m.c, m.d, x, y);
-		context.drawImage(texture, srcX,0, scale,scale, 0,0, scale,scale);
+Block.prototype.drawSide = function(index){
+	var m = env.faces[index];
+	if (!m){
+		return;
 	}
-}
+
+	// TODO: need texture size vs scale here; scale is temp, 
+	// but may be needed to alter texture size to fit
+	var x = this.offset.x + env.origin.x + m.x * env.scale;
+	var y = this.offset.y + env.origin.y + m.y * env.scale;
+	var srcX = index * env.scale; 
+	env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
+	env.context.drawImage(texture, srcX,0, env.scale,env.scale, 0,0, env.scale,env.scale);
+};
 
 // quick and dirty tweener for testing
 function Anim(from, to, frames){
