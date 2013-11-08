@@ -1,16 +1,16 @@
-var texture = null; // TODO: per-block texture mapping
+var textures = null; // TODO: per-block texture mapping
 var env = null;
 
 function init(){
-	env = new Environment("canvas");
+	env = new Environment("canvas"); // TODO: limit who accesses this
 	env.scale = 100;
 
-	texture = new Image();
-	texture.onload = imageLoaded;
-	texture.src = "sides.fw.png";
+	textures = new Image();
+	textures.onload = texturesLoaded;
+	textures.src = "sides.fw.png";
 }
 
-function imageLoaded(){
+function texturesLoaded(){
 	canvas.addEventListener("mousemove", handleMousePerspective);
 	render(0, 0);
 }
@@ -30,11 +30,13 @@ function render(rotationAroundX, rotationAroundY){
 	env.transform.rotateY(rotationAroundY);
 	env.commitTransform();
 
+	var texture = new BlockTexture(textures, 0,0,100,100);
+
 	drawBlocks([
-		new Block(new Point3D( 0,0,0)).place(),
-		new Block(new Point3D( 1,0,0)).place(),
-		new Block(new Point3D(-1,0,0)).place(),
-		new Block(new Point3D( 1,1,0)).place()
+		new Block(new Point3D( 0,0,0), texture).place(),
+		new Block(new Point3D( 1,0,0), texture).place(),
+		new Block(new Point3D(-1,0,0), texture).place(),
+		new Block(new Point3D( 1,1,0), texture).place()
 	]);
 }
 
@@ -88,12 +90,25 @@ Environment.prototype.commitTransform = function(){
 			this.faces[i] = null;
 		}
 	}
-
 };
 
-function Block(loc){
+function BlockTexture(image, x, y, width, height){
+	this.image = image;
+	this.x = x;
+	this.y = y;
+	this.width = width;
+	this.height = height;
+}
+
+BlockTexture.prototype.draw = function(faceIndex){
+	var srcX = this.x + faceIndex * this.width; 
+	env.context.drawImage(this.image, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
+};
+
+function Block(loc, texture){
 	this.loc = loc;
 	this.offset = this.loc.clone();
+	this.texture = texture;
 }
 
 Block.prototype.place = function(){
@@ -116,13 +131,10 @@ Block.prototype.drawSide = function(index){
 		return;
 	}
 
-	// TODO: need texture size vs scale here; scale is temp, 
-	// but may be needed to alter texture size to fit
 	var x = this.offset.x + env.origin.x + m.x * env.scale;
 	var y = this.offset.y + env.origin.y + m.y * env.scale;
-	var srcX = index * env.scale; 
 	env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
-	env.context.drawImage(texture, srcX,0, env.scale,env.scale, 0,0, env.scale,env.scale);
+	this.texture.draw(index);
 };
 
 // quick and dirty tweener for testing
