@@ -1,4 +1,4 @@
-canvas-iso
-==========
+canvas-iso-blocks
+=================
 
 isometric testing
