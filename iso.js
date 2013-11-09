@@ -44,12 +44,13 @@ function render(rotationAroundX, rotationAroundY){
 	// rather than recreate every frame
 
 	var texture = new BlockTexture(textures, 0,0,100,100);
+	var textureShared = new BlockTexture(textures, 0,0,100,100, [0,1,2,2,2,2]);
 
 	drawBlocks([
 		new Block(new Point3D( 0,0,0), texture).place(),
 		new Block(new Point3D( 1,0,0), texture).place(),
 		new Block(new Point3D(-1,0,0), texture).place(),
-		new Block(new Point3D( 1,1,0), texture).place()
+		new Block(new Point3D( 1,1,0), textureShared).place()
 	]);
 }
 
@@ -72,7 +73,8 @@ function sortOnPlacedZ(a, b){
 function Environment(canvasId){
 	this.canvas = document.getElementById(canvasId);
 	this.context = this.canvas.getContext("2d");
-	this.origin = new Point2D(this.canvas.width/2, this.canvas.height/2);
+	this.origin2D = new Point2D(this.canvas.width/2, this.canvas.height/2);
+	this.origin3D = new Point3D(-0.5, 0, -0.5);
 	this.scale = 100;
 
 	this.transform = new Matrix3D();
@@ -103,7 +105,10 @@ Environment.prototype.commitTransform = function(){
 	this.faceIndices = [];
 	var i = this.faces.length;
 	while (i--){
-		if (Environment.isFaceFrontFacing( this.faces[i] )){
+		var face = this.faces[i];
+		if (Environment.isFaceFrontFacing(face)){
+			face.x = this.origin2D.x + face.x * this.scale;
+			face.y = this.origin2D.y + face.y * this.scale;
 			this.faceIndices.push(i);
 		}
 	}
@@ -119,8 +124,15 @@ function BlockTexture(image, x, y, width, height, faceMapping){
 }
 
 BlockTexture.prototype.draw = function(faceIndex){
+	if (!this.hasFace(faceIndex)){
+		return;
+	}
 	var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
 	env.context.drawImage(this.image, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
+};
+
+BlockTexture.prototype.hasFace = function(faceIndex){
+	return !isNaN(this.faceMapping[faceIndex]);
 };
 
 function Block(loc, texture){
@@ -130,7 +142,9 @@ function Block(loc, texture){
 }
 
 Block.prototype.place = function(){
+	// TODO: should prob move to env
 	this.placement.copy(this.location);
+	this.placement.addPoint(env.origin3D);
 	env.transform.transformPoint(this.placement);
 	this.placement.scale(env.scale);
 	return this;
@@ -144,11 +158,13 @@ Block.prototype.draw = function(){
 };
 
 Block.prototype.drawFace = function(index){
-	var m = env.faces[index];
-	var x = this.placement.x + env.origin.x + m.x * env.scale;
-	var y = this.placement.y + env.origin.y + m.y * env.scale;
-	env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
-	this.texture.draw(index);
+	if (this.texture.hasFace(index)){
+		var m = env.faces[index];
+		var x = this.placement.x + m.x;
+		var y = this.placement.y + m.y;
+		env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
+		this.texture.draw(index);
+	}
 };
 
 // quick and dirty tweener for testing
@@ -223,12 +239,21 @@ Point3D.prototype.copy = function(pt){
 	this.x = pt.x;
 	this.y = pt.y;
 	this.z = pt.z;
+	return this;
+};
+
+Point3D.prototype.addPoint = function(pt){
+	this.x += pt.x;
+	this.y += pt.y;
+	this.z += pt.z;
+	return this;
 };
 
 Point3D.prototype.scale = function(n){
 	this.x *= n;
 	this.y *= n;
 	this.z *= n;
+	return this;
 };
 
 
