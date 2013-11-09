@@ -3,16 +3,24 @@ var env = null;
 
 function init(){
 	env = new Environment("canvas");
-	env.scale = 100;
-
 	textures = new Image();
 	textures.onload = texturesLoaded;
 	textures.src = "sides.fw.png";
 }
 
 function texturesLoaded(){
-	canvas.addEventListener("mousemove", handleMousePerspective);
+	//canvas.addEventListener("mousemove", handleMousePerspective);
+	requestAnimationFrame(autoSpin);
 	render(0, 0);
+}
+
+var ax=0, ay=0;
+function autoSpin(){
+	env.clear();
+	ax = -0.3;
+	ay += 0.02;
+	render(ax, ay);
+	requestAnimationFrame(autoSpin);
 }
 
 function handleMousePerspective(event){
@@ -46,14 +54,14 @@ function render(rotationAroundX, rotationAroundY){
 }
 
 function drawBlocks(blocks){
-	blocks.sort(sortOnOffsetZ);
+	blocks.sort(sortOnPlacedZ);
 	for (var i=0, n=blocks.length; i<n; i++){
 		blocks[i].draw();
 	}
 }
 
-function sortOnOffsetZ(a, b){
-	return a.offset.z - b.offset.z;
+function sortOnPlacedZ(a, b){
+	return a.placement.z - b.placement.z;
 }
 
 
@@ -65,6 +73,8 @@ function Environment(canvasId){
 	this.canvas = document.getElementById(canvasId);
 	this.context = this.canvas.getContext("2d");
 	this.origin = new Point2D(this.canvas.width/2, this.canvas.height/2);
+	this.scale = 100;
+
 	this.transform = new Matrix3D();
 	this.faces = [];
 	this.faceIndices = [];
@@ -99,29 +109,30 @@ Environment.prototype.commitTransform = function(){
 	}
 };
 
-function BlockTexture(image, x, y, width, height){
+function BlockTexture(image, x, y, width, height, faceMapping){
 	this.image = image;
 	this.x = x;
 	this.y = y;
 	this.width = width;
 	this.height = height;
+	this.faceMapping = faceMapping || [0,1,2,3,4,5];
 }
 
 BlockTexture.prototype.draw = function(faceIndex){
-	var srcX = this.x + faceIndex * this.width; 
+	var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
 	env.context.drawImage(this.image, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
 };
 
 function Block(loc, texture){
-	this.loc = loc;
-	this.offset = this.loc.clone();
+	this.location = loc;
+	this.placement = this.location.clone();
 	this.texture = texture;
 }
 
 Block.prototype.place = function(){
-	this.offset.copy(this.loc);
-	env.transform.transformPoint(this.offset);
-	this.offset.scale(env.scale);
+	this.placement.copy(this.location);
+	env.transform.transformPoint(this.placement);
+	this.placement.scale(env.scale);
 	return this;
 };
 
@@ -134,8 +145,8 @@ Block.prototype.draw = function(){
 
 Block.prototype.drawFace = function(index){
 	var m = env.faces[index];
-	var x = this.offset.x + env.origin.x + m.x * env.scale;
-	var y = this.offset.y + env.origin.y + m.y * env.scale;
+	var x = this.placement.x + env.origin.x + m.x * env.scale;
+	var y = this.placement.y + env.origin.y + m.y * env.scale;
 	env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
 	this.texture.draw(index);
 };
