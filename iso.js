@@ -2,13 +2,24 @@ var textures = null;
 var env = null;
 
 function init(){
-	env = new Environment("canvas");
 	textures = new Image();
 	textures.onload = texturesLoaded;
 	textures.src = "sides.fw.png";
 }
 
 function texturesLoaded(){
+	env = new Environment("canvas");
+
+	var texture = new BlockTexture(textures, 0,0,100,100);
+	var textureRepeated = new BlockTexture(textures, 0,0,100,100, [0,1,2,2,2,2]);
+
+	env.setBlocks(
+		new Block(new Point3D( 0,0,0), texture),
+		new Block(new Point3D( 1,0,0), texture),
+		new Block(new Point3D(-1,0,0), texture),
+		new Block(new Point3D( 1,1,0), textureRepeated)
+	);
+
 	document.addEventListener("keydown", handleKeyDown);
 }
 
@@ -31,38 +42,6 @@ function handleKeyDown(event){
 	}
 }
 
-function render(rotationAroundX, rotationAroundY){
-	env.transform.identity();
-	env.transform.rotateX(rotationAroundX);
-	env.transform.rotateY(rotationAroundY);
-	env.commitTransform();
-
-
-	// TODO: store blocks in persistent graph
-	// rather than recreate every frame
-
-	var texture = new BlockTexture(textures, 0,0,100,100);
-	var textureShared = new BlockTexture(textures, 0,0,100,100, [0,1,2,2,2,2]);
-
-	drawBlocks([
-		new Block(new Point3D( 0,0,0), texture).place(),
-		new Block(new Point3D( 1,0,0), texture).place(),
-		new Block(new Point3D(-1,0,0), texture).place(),
-		new Block(new Point3D( 1,1,0), textureShared).place()
-	]);
-}
-
-function drawBlocks(blocks){
-	blocks.sort(sortOnPlacedZ);
-	for (var i=0, n=blocks.length; i<n; i++){
-		blocks[i].draw();
-	}
-}
-
-function sortOnPlacedZ(a, b){
-	return a.placement.z - b.placement.z;
-}
-
 
 /********************\
 		CLASSES
@@ -71,11 +50,13 @@ function sortOnPlacedZ(a, b){
 function Environment(canvasId){
 	this.canvas = document.getElementById(canvasId);
 	this.context = this.canvas.getContext("2d");
+
 	this.origin2D = new Point2D(this.canvas.width/2, this.canvas.height/2);
 	this.origin3D = new Point3D(-0.5, 0, -0.5);
+	this.transform = new Matrix3D();
 	this.scale = 100;
 
-	this.transform = new Matrix3D();
+	this.blocks = [];
 	this.faces = [];
 	this.faceIndices = [];
 
@@ -90,7 +71,7 @@ function Environment(canvasId){
 	this.tiltAngle = 0;
 	this.tiltValue = 0;
 
-	this.updateSpinTilt = this.updateSpinTilt.bind(this);
+	this.drawFrame = this.drawFrame.bind(this);
 
 	// init
 	// TODO: don't animate init
@@ -98,16 +79,37 @@ function Environment(canvasId){
 	this.tilt(2);
 
 	// constantly update
-	requestAnimationFrame(this.updateSpinTilt);
+	this.drawFrame();
 }
 
 Environment.isFaceFrontFacing = function(m){
 	return m.a*m.d - m.b*m.c > 0;
 };
 
+Environment.sortOnPlacedZ = function(a, b){
+	return a.placement.z - b.placement.z;
+};
+
+Environment.prototype.setBlocks = function(/* args */){
+	this.blocks.length = 0;
+	this.blocks.push.apply(this.blocks, arguments);
+};
+
 Environment.prototype.clear = function(){
 	this.context.setTransform(1,0,0,1,0,0);
 	this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+};
+
+Environment.prototype.draw = function(){
+	this.clear();
+	
+	this.transform.identity();
+	this.transform.rotateX(this.tiltAngle);
+	this.transform.rotateY(this.spinAngle);
+	this.commitTransform();
+
+	this.placeBlocks();
+	this.drawBlocks();
 };
 
 Environment.prototype.commitTransform = function(){
@@ -133,13 +135,22 @@ Environment.prototype.commitTransform = function(){
 	}
 };
 
-Environment.prototype.updateSpinTilt = function(){
-	this.clear();
-	
-	// TODO: should probably move env
-	render(this.tiltAngle, this.spinAngle);
+Environment.prototype.placeBlocks = function(blocks){
+	for (var i=0, n=this.blocks.length; i<n; i++){
+		this.blocks[i].place();
+	}
+};
 
-	requestAnimationFrame(this.updateSpinTilt);
+Environment.prototype.drawBlocks = function(blocks){
+	this.blocks.sort(Environment.sortOnPlacedZ);
+	for (var i=0, n=this.blocks.length; i<n; i++){
+		this.blocks[i].draw();
+	}
+};
+
+Environment.prototype.drawFrame = function(){
+	this.draw();
+	requestAnimationFrame(this.drawFrame);
 }
 
 Environment.prototype.spin = function(offset){
@@ -167,6 +178,7 @@ Environment.prototype.tilt = function(offset){
 	this.animateTilt = new Animate(this, "tiltAngle", targetAngle, this.transitionTime);
 };
 
+
 function BlockTexture(image, x, y, width, height, faceMapping){
 	this.image = image;
 	this.x = x;
@@ -187,6 +199,7 @@ BlockTexture.prototype.draw = function(faceIndex){
 BlockTexture.prototype.hasFace = function(faceIndex){
 	return !isNaN(this.faceMapping[faceIndex]);
 };
+
 
 function Block(loc, texture){
 	this.location = loc;
@@ -219,6 +232,7 @@ Block.prototype.drawFace = function(index){
 		this.texture.draw(index);
 	}
 };
+
 
 function Animate(target, property, toValue, duration){
 	this.target = target;
@@ -267,7 +281,6 @@ Animate.prototype.update = function(){
 	}else{
 		requestAnimationFrame(this.update);
 	}
-
 };
 
 
