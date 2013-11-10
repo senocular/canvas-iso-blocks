@@ -12,12 +12,14 @@ function texturesLoaded(){
 
 	var texture = new BlockTexture(textures, 0,0,100,100);
 	var textureRepeated = new BlockTexture(textures, 0,0,100,100, [0,1,2,2,2,2]);
+	var texturePartial = new BlockTexture(textures, 0,0,100,100, [null,null,2,null,2,null]);
 
 	env.setBlocks(
 		new Block(new Point3D( 0,0,0), texture),
 		new Block(new Point3D( 1,0,0), texture),
 		new Block(new Point3D(-1,0,0), texture),
-		new Block(new Point3D( 1,1,0), textureRepeated)
+		new Block(new Point3D( 1,1,0), textureRepeated),
+		new Block(new Point3D( 0,-1,0), texturePartial, true)
 	);
 
 	document.addEventListener("keydown", handleKeyDown);
@@ -58,7 +60,8 @@ function Environment(canvasId){
 
 	this.blocks = [];
 	this.faces = [];
-	this.faceIndices = [];
+	this.visibleFaceIndices = [];
+	this.hiddenFaceIndices = [];
 
 	this.transitionTime = 100;
 	
@@ -102,7 +105,7 @@ Environment.prototype.clear = function(){
 
 Environment.prototype.draw = function(){
 	this.clear();
-	
+
 	this.transform.identity();
 	this.transform.rotateX(this.tiltAngle);
 	this.transform.rotateY(this.spinAngle);
@@ -123,14 +126,19 @@ Environment.prototype.commitTransform = function(){
 		new Matrix2D( t.c,t.f,   t.b,t.e,  0,0)
 	];
 
-	this.faceIndices = [];
+	this.visibleFaceIndices.length = 0;
+	this.hiddenFaceIndices.length = 0;
+
 	var i = this.faces.length;
 	while (i--){
 		var face = this.faces[i];
+		face.x = this.origin2D.x + face.x * this.scale;
+		face.y = this.origin2D.y + face.y * this.scale;
+
 		if (Environment.isFaceFrontFacing(face)){
-			face.x = this.origin2D.x + face.x * this.scale;
-			face.y = this.origin2D.y + face.y * this.scale;
-			this.faceIndices.push(i);
+			this.visibleFaceIndices.push(i);
+		}else{
+			this.hiddenFaceIndices.push(i);
 		}
 	}
 };
@@ -197,14 +205,15 @@ BlockTexture.prototype.draw = function(faceIndex){
 };
 
 BlockTexture.prototype.hasFace = function(faceIndex){
-	return !isNaN(this.faceMapping[faceIndex]);
+	return this.faceMapping[faceIndex] != null;
 };
 
 
-function Block(loc, texture){
+function Block(loc, texture, twoSided){
 	this.location = loc;
 	this.placement = this.location.clone();
 	this.texture = texture;
+	this.twoSided = twoSided || false;
 }
 
 Block.prototype.place = function(){
@@ -217,9 +226,18 @@ Block.prototype.place = function(){
 };
 
 Block.prototype.draw = function(){
-	var i = env.faceIndices.length;
+	var i;
+
+	if (this.twoSided){
+		i = env.hiddenFaceIndices.length;
+		while (i--){
+			this.drawFace( env.hiddenFaceIndices[i] );
+		}
+	}
+
+	i = env.visibleFaceIndices.length;
 	while (i--){
-		this.drawFace( env.faceIndices[i] );
+		this.drawFace( env.visibleFaceIndices[i] );
 	}
 };
 
