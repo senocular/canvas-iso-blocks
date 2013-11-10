@@ -10,18 +10,6 @@ function init(){
 
 function texturesLoaded(){
 	document.addEventListener("keydown", handleKeyDown);
-	//canvas.addEventListener("mousemove", handleMousePerspective);
-	//requestAnimationFrame(autoSpin);
-	render(0, 0);
-}
-
-var ax=0, ay=0;
-function autoSpin(){
-	env.clear();
-	ax = -0.3;
-	ay += 0.02;
-	render(ax, ay);
-	requestAnimationFrame(autoSpin);
 }
 
 function handleKeyDown(event){
@@ -41,15 +29,6 @@ function handleKeyDown(event){
 			env.tilt(-1);
 			break;
 	}
-}
-function handleMousePerspective(event){
-	env.clear();
-
-	// TODO: click to drag rotation rather than on move
-	Mouse.get(event);
-	var ax = -(2*Math.PI) * Mouse.y/env.canvas.height;
-	var ay = -(2*Math.PI) * Mouse.x/env.canvas.width;
-	render(ax, ay);
 }
 
 function render(rotationAroundX, rotationAroundY){
@@ -171,7 +150,6 @@ Environment.prototype.spin = function(offset){
 	}
 	var targetAngle = Math.PI/4 + this.spinValue * Math.PI/2;
 	this.animateSpin = new Animate(this, "spinAngle", targetAngle, this.transitionTime);
-
 };
 
 Environment.prototype.tilt = function(offset){
