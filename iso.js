@@ -9,8 +9,9 @@ function init(){
 }
 
 function texturesLoaded(){
+	document.addEventListener("keydown", handleKeyDown);
 	//canvas.addEventListener("mousemove", handleMousePerspective);
-	requestAnimationFrame(autoSpin);
+	//requestAnimationFrame(autoSpin);
 	render(0, 0);
 }
 
@@ -23,6 +24,24 @@ function autoSpin(){
 	requestAnimationFrame(autoSpin);
 }
 
+function handleKeyDown(event){
+
+	switch(event.keyCode){
+
+		case 37: // Left
+			env.spin(1);
+			break;
+		case 38: // Up
+			env.tilt(1);
+			break;
+		case 39: // Right
+			env.spin(-1);
+			break;
+		case 40: // Down
+			env.tilt(-1);
+			break;
+	}
+}
 function handleMousePerspective(event){
 	env.clear();
 
@@ -80,6 +99,27 @@ function Environment(canvasId){
 	this.transform = new Matrix3D();
 	this.faces = [];
 	this.faceIndices = [];
+
+	this.transitionTime = 100;
+	
+	this.animateSpin = null;
+	this.spinValue = 0; // value by which angle is based
+	this.spinAngle = 0; // actual angle of rotation
+
+	this.animateTilt = null;
+	this.tiltSteps = 5;
+	this.tiltAngle = 0;
+	this.tiltValue = 0;
+
+	this.updateSpinTilt = this.updateSpinTilt.bind(this);
+
+	// init
+	// TODO: don't animate init
+	this.spin(0);
+	this.tilt(2);
+
+	// constantly update
+	requestAnimationFrame(this.updateSpinTilt);
 }
 
 Environment.isFaceFrontFacing = function(m){
@@ -112,6 +152,41 @@ Environment.prototype.commitTransform = function(){
 			this.faceIndices.push(i);
 		}
 	}
+};
+
+Environment.prototype.updateSpinTilt = function(){
+	this.clear();
+	
+	// TODO: should probably move env
+	render(this.tiltAngle, this.spinAngle);
+
+	requestAnimationFrame(this.updateSpinTilt);
+}
+
+Environment.prototype.spin = function(offset){
+	this.spinValue += offset;
+
+	if (this.animateSpin){
+		this.animateSpin.stop();
+	}
+	var targetAngle = Math.PI/4 + this.spinValue * Math.PI/2;
+	this.animateSpin = new Animate(this, "spinAngle", targetAngle, this.transitionTime);
+
+};
+
+Environment.prototype.tilt = function(offset){
+	this.tiltValue += offset;
+	if (this.tiltValue < 0){
+		this.tiltValue = 0;
+	}else if (this.tiltValue > this.tiltSteps){
+		this.tiltValue = this.tiltSteps;
+	}
+
+	if (this.animateTilt){
+		this.animateTilt.stop();
+	}
+	var targetAngle = -this.tiltValue * Math.PI/(2 * this.tiltSteps);
+	this.animateTilt = new Animate(this, "tiltAngle", targetAngle, this.transitionTime);
 };
 
 function BlockTexture(image, x, y, width, height, faceMapping){
@@ -167,51 +242,54 @@ Block.prototype.drawFace = function(index){
 	}
 };
 
-// quick and dirty tweener for testing
-function Anim(from, to, frames){
-	this.from = from;
-	this.to = to;
-	this.frames = frames;
-
-	this.frame = 0;
-	this.value = from;
-
-	this.onframe = null;
+function Animate(target, property, toValue, duration){
+	this.target = target;
+	this.property = property;
+	this.fromValue = this.target[this.property];
+	this.toValue = toValue;
+	this.valueRange = this.toValue - this.fromValue;
+	this.duration = duration;
+	this.startTime = Date.now();
+	this.endTime = this.startTime + this.duration;
+	this.onstep = null;
 	this.oncomplete = null;
-
-	this.next = this.next.bind(this);
+	this.update = this.update.bind(this);
+	this.update(); // start upon creation
 }
 
-Anim.prototype.start = function(){
-	this.frame = 0;
-	this.update();
-	this.validateNext();
+Animate.prototype.stop = function(){
+	this.endTime = -1;
+	this.onstep = null;
+	this.oncomplete = null;
 };
 
-Anim.prototype.next = function(){
-	this.frame++;
-	this.update();
-	this.validateNext();
-};
+Animate.prototype.update = function(){
 
-Anim.prototype.update = function(){
-	var prog = this.frame/this.frames;
-	this.value = this.from + (this.to - this.from)*prog;
-	if (this.onframe){
-		this.onframe(this.value);
+	var currTime = Date.now();
+	if (currTime > this.endTime){
+		if (this.endTime === -1){
+			return; // stopped
+		}
+		currTime = this.endTime;
 	}
-};
 
-Anim.prototype.validateNext = function(){
-	var nextFrame = this.frame + 1;
-	if (nextFrame > this.frames){
-		this.value = this.to;
+	var progress = (currTime - this.startTime)/this.duration;
+	progress = Math.sqrt(progress); // easing
+
+	this.target[this.property] = this.fromValue + progress * this.valueRange;
+
+	if (this.onstep){
+		this.onstep(this);
+	}
+
+	if (currTime === this.endTime){
 		if (this.oncomplete){
-			this.oncomplete(this.value);
+			this.oncomplete(this);
 		}
 	}else{
-		requestAnimationFrame(this.next);
+		requestAnimationFrame(this.update);
 	}
+
 };
 
 
