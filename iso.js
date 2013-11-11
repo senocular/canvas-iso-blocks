@@ -165,14 +165,14 @@ Environment.prototype.commitTransform = function(){
 
 Environment.prototype.placeBlocks = function(blocks){
 	for (var i=0, n=this.blocks.length; i<n; i++){
-		this.blocks[i].place();
+		this.blocks[i].place(this);
 	}
 };
 
 Environment.prototype.drawBlocks = function(blocks){
 	this.blocks.sort(Environment.sortOnPlacedZ);
 	for (var i=0, n=this.blocks.length; i<n; i++){
-		this.blocks[i].draw();
+		this.blocks[i].draw(this);
 	}
 };
 
@@ -237,7 +237,7 @@ function BlockTexture(image, x, y, width, height, faceMapping){
 	this.faceMapping = faceMapping || [0,1,2,3,4,5];
 }
 
-BlockTexture.prototype.draw = function(faceIndex){
+BlockTexture.prototype.draw = function(env, faceIndex){
 	if (!this.hasFace(faceIndex)){
 		return;
 	}
@@ -257,38 +257,36 @@ function Block(loc, texture, twoSided){
 	this.twoSided = twoSided || false;
 }
 
-Block.prototype.place = function(){
-	// TODO: should prob move to env
+Block.prototype.place = function(env){
 	this.placement.copy(this.location);
 	this.placement.addPoint(env.origin3D);
 	env.transform.transformPoint(this.placement);
 	this.placement.scale(env.scale);
-	return this;
 };
 
-Block.prototype.draw = function(){
+Block.prototype.draw = function(env){
 	var i;
 
 	if (this.twoSided){
 		i = env.hiddenFaceIndices.length;
 		while (i--){
-			this.drawFace( env.hiddenFaceIndices[i] );
+			this.drawFace(env, env.hiddenFaceIndices[i] );
 		}
 	}
 
 	i = env.visibleFaceIndices.length;
 	while (i--){
-		this.drawFace( env.visibleFaceIndices[i] );
+		this.drawFace(env, env.visibleFaceIndices[i] );
 	}
 };
 
-Block.prototype.drawFace = function(index){
+Block.prototype.drawFace = function(env, index){
 	if (this.texture.hasFace(index)){
 		var m = env.faces[index];
 		var x = this.placement.x + m.x;
 		var y = this.placement.y + m.y;
 		env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
-		this.texture.draw(index);
+		this.texture.draw(env, index);
 	}
 };
 
