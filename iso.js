@@ -30,16 +30,35 @@ function handleKeyDown(event){
 	switch(event.keyCode){
 
 		case 37: // Left
-			env.spin(1);
+			if (event.ctrlKey){
+				env.spin(1);
+			}else{
+				env.move(1, 0, 0);
+			}
 			break;
+
 		case 38: // Up
-			env.tilt(1);
+			if (event.ctrlKey){
+				env.tilt(1);
+			}else{
+				env.move(0, 0, 1);
+			}
 			break;
+
 		case 39: // Right
-			env.spin(-1);
+			if (event.ctrlKey){
+				env.spin(-1);
+			}else{
+				env.move(-1, 0, 0);
+			}
 			break;
+
 		case 40: // Down
-			env.tilt(-1);
+			if (event.ctrlKey){
+				env.tilt(-1);
+			}else{
+				env.move(0, 0, -1);
+			}
 			break;
 	}
 }
@@ -74,7 +93,7 @@ function Environment(canvasId){
 	this.tiltAngle = 0;
 	this.tiltValue = 0;
 
-	this.drawFrame = this.drawFrame.bind(this);
+	this.onFrame = this.onFrame.bind(this);
 
 	// init
 	// TODO: don't animate init
@@ -82,7 +101,7 @@ function Environment(canvasId){
 	this.tilt(2);
 
 	// constantly update
-	this.drawFrame();
+	this.onFrame();
 }
 
 Environment.isFaceFrontFacing = function(m){
@@ -113,6 +132,7 @@ Environment.prototype.draw = function(){
 
 	this.placeBlocks();
 	this.drawBlocks();
+	this.drawFocus();
 };
 
 Environment.prototype.commitTransform = function(){
@@ -156,10 +176,31 @@ Environment.prototype.drawBlocks = function(blocks){
 	}
 };
 
-Environment.prototype.drawFrame = function(){
+Environment.prototype.drawFocus = function(blocks){
+	var m = this.faces[0];
+	this.context.setTransform(m.a, m.b, m.c, m.d, m.x, m.y);
+	this.context.beginPath();
+	this.context.arc(0,0, this.scale/4, 0,Math.PI*2);
+
+	this.context.fillStyle = "rgba(0,255,0,0.33)";
+	this.context.fill();
+
+	this.context.lineWidth = 3;
+	this.context.strokeStyle = "rgba(0,0,0,0.5)";
+	this.context.stroke();
+};
+
+Environment.prototype.onFrame = function(){
 	this.draw();
-	requestAnimationFrame(this.drawFrame);
+	requestAnimationFrame(this.onFrame);
 }
+
+Environment.prototype.move = function(offX, offY, offZ){
+	// TODO: Animate?
+	this.origin3D.x += offX;
+	this.origin3D.y += offY;
+	this.origin3D.z += offZ;
+};
 
 Environment.prototype.spin = function(offset){
 	this.spinValue += offset;
