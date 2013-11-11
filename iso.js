@@ -23,6 +23,7 @@ function texturesLoaded(){
 	);
 
 	document.addEventListener("keydown", handleKeyDown);
+	env.canvas.addEventListener("mousemove", handleMouseMove);
 }
 
 function handleKeyDown(event){
@@ -63,6 +64,12 @@ function handleKeyDown(event){
 	}
 }
 
+function handleMouseMove(event){
+	Mouse.get(event);
+	env.pointer.x = Mouse.x;
+	env.pointer.y = Mouse.y;
+}
+
 
 /********************\
 		CLASSES
@@ -76,6 +83,8 @@ function Environment(canvasId){
 	this.origin3D = new Point3D(-0.5, 0, -0.5);
 	this.transform = new Matrix3D();
 	this.scale = 100;
+
+	this.pointer = new Point2D(0,0);
 
 	this.blocks = [];
 	this.faces = [];
@@ -286,7 +295,31 @@ Block.prototype.drawFace = function(env, index){
 		var x = this.placement.x + m.x;
 		var y = this.placement.y + m.y;
 		env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
+
+		
+		// KLUDGE: Mouse interaction
+
+
+		var containsMouse = false;
+		var mousePt;
+		var mouseM = m.clone();
+		mouseM.x = x;
+		mouseM.y = y;
+		if (mouseM.invert()){
+			mousePt = env.pointer.clone();
+			mouseM.transformPoint(mousePt);
+			containsMouse = (
+				mousePt.x > 0 && mousePt.x < env.scale && 
+				mousePt.y > 0 && mousePt.y < env.scale
+			);
+		}
+
 		this.texture.draw(env, index);
+
+		if (containsMouse) {
+			env.context.fillStyle = "rgba(255,0,0,0.25)";
+			env.context.fillRect(0,0, env.scale,env.scale);
+		}
 	}
 };
 
@@ -401,6 +434,10 @@ Matrix2D.prototype.toString = function(){
 		+this.x+","+this.y+")";
 };
 
+Matrix2D.prototype.clone = function() {
+	return new Matrix2D(this.a,	this.b,	this.c,	this.d,	this.x,	this.y);
+};
+
 Matrix2D.prototype.identity = function() {
 	this.a = 1;
 	this.b = 0;
@@ -408,6 +445,30 @@ Matrix2D.prototype.identity = function() {
 	this.d = 1;
 	this.x = 0;
 	this.y = 0;
+};
+
+Matrix2D.prototype.invert = function () {
+	var det = this.a * this.d - this.b * this.c;
+
+	if (det !== 0) {
+		var a = this.a;
+		var b = this.b;
+		var c = this.c;
+		var d = this.d;
+		var x = this.x;
+		var y = this.y;
+
+		this.a = d/det;
+		this.b = -b/det;
+		this.c = -c/det;
+		this.d = a/det;
+		this.x = (c * y - x * d)/det;
+		this.y = (x * b - a * y)/det;
+
+		return true;
+	}
+
+	return false;
 };
 
 Matrix2D.prototype.rotate = function(angle){
@@ -437,6 +498,14 @@ Matrix2D.prototype.scale = function(x, y) {
 Matrix2D.prototype.translate = function(x, y){
 	this.x += x;
 	this.y += y;
+};
+
+Matrix2D.prototype.transformPoint = function(p){
+	var x = p.x;
+	var y = p.y;
+	p.x = this.x + x*this.a + y*this.c;
+	p.y = this.y + x*this.b + y*this.d;
+	return p;
 };
 
 
