@@ -13,18 +13,15 @@ function texturesLoaded(){
 	var numbers = new BlockTexture(textures, 0,0,100,100);
 
 	var fence = new BlockTexture(textures, 0,100,25,25, [null,null,0,null,0,null]);
-	var grass = new BlockTexture(textures, 25,100,25,25, [0,1,2,2,2,2]);
+	var grass = new BlockTexture(textures, 25,100,25,25, [0,1,3,3,2,2]);
 
 	// DEBUG: dynamic texture editing
-	var c = numbers.getDrawingContext(4);
-	c.save();
-	c.beginPath();
-	c.rect(0,0,numbers.width,numbers.height);
-	c.clip();
+	var c = numbers.getDrawingContextForFace(4);
 	c.fillStyle = "rgba(0,0,255,0.25)";
 	c.fillRect(0, 0, 300, 100);
 	c.restore();
 
+	// TODO: use "Layouts" with-sub layouts
 	env.setBlocks(
 		new Block(new Point3D(-1, 0,0), numbers),
 		new Block(new Point3D( 0, 0,0), numbers),
@@ -38,7 +35,9 @@ function texturesLoaded(){
 	);
 
 	document.addEventListener("keydown", handleKeyDown);
+	env.canvas.addEventListener("mousedown", handleMouseDown);
 	env.canvas.addEventListener("mousemove", handleMouseMove);
+	document.addEventListener("mouseup", handleMouseUp);
 }
 
 function handleKeyDown(event){
@@ -79,10 +78,19 @@ function handleKeyDown(event){
 	}
 }
 
+function handleMouseDown(event){
+	env.pointerDown = true;
+	event.preventDefault();
+}
+
 function handleMouseMove(event){
-	Mouse.get(event);
-	env.pointer.x = Mouse.x;
-	env.pointer.y = Mouse.y;
+	env.updatePointer( Mouse.get(event) );
+	event.preventDefault();
+}
+
+function handleMouseUp(event){
+	env.pointerDown = false;
+	event.preventDefault();
 }
 
 
@@ -93,6 +101,7 @@ function handleMouseMove(event){
 function Environment(canvasId){
 	this.canvas = document.getElementById(canvasId);
 	this.context = this.canvas.getContext("2d");
+	this.context.imageSmoothingEnabled = false;
 
 	this.origin2D = new Point2D(this.canvas.width/2, this.canvas.height/2);
 	this.origin3D = new Point3D(-0.5, 0, -0.5);
@@ -100,6 +109,8 @@ function Environment(canvasId){
 	this.scale = 100;
 
 	this.pointer = new Point2D(0,0);
+	this.lastPointer = new Point2D(0,0);
+	this.pointerDown = false;
 	this.facesUnderPointer = [];
 
 	this.blocks = [];
@@ -142,6 +153,16 @@ Environment.prototype.setBlocks = function(/* args */){
 	this.blocks.push.apply(this.blocks, arguments);
 };
 
+Environment.prototype.updatePointer = function(pt){
+	this.lastPointer.copy(this.pointer);
+	this.pointer.copy(pt);
+};
+
+Environment.prototype.onFrame = function(){
+	this.draw();
+	requestAnimationFrame(this.onFrame);
+};
+
 Environment.prototype.clear = function(){
 	this.context.setTransform(1,0,0,1,0,0);
 	this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -160,15 +181,54 @@ Environment.prototype.draw = function(){
 	this.drawBlocks();
 	this.drawFocus();
 
-	// show mouse face
+
+	// Mouse
 
 	var lastFaceIndex = this.facesUnderPointer.length - 1;
 	if (lastFaceIndex >= 0){
 		var lastFace = this.facesUnderPointer[lastFaceIndex];
 
+		// highlight face
 		lastFace.block.updateTransform(this, lastFace.faceIndex);
 		this.context.fillStyle = "rgba(255,0,0,0.25)";
 		this.context.fillRect(0,0, env.scale,env.scale);
+
+		// TODO: need to define better API for these interactions
+		// TODO: draw segment for this point off, last point on
+
+		// draw on face
+		if (this.pointerDown){
+			var lineSize = 10;
+			var tex = lastFace.block.texture;
+
+			var c = tex.getDrawingContextForFace(lastFace.faceIndex);
+
+			var m = this.faces[lastFace.faceIndex].clone();
+			var x = m.x;
+			var y = m.y;
+			m.scale(this.scale/tex.width, this.scale/tex.height);
+			m.x = x + lastFace.block.placement.x;
+			m.y = y + lastFace.block.placement.y;
+
+			var lineScaleFactor = (tex.width + tex.height)/(2 * this.scale);
+
+			if (m.invert()){
+				var movePt = this.lastPointer.clone();
+				var linePt = this.pointer.clone();
+				m.transformPoint(movePt);
+				m.transformPoint(linePt);
+
+				c.lineWidth = lineSize * lineScaleFactor;
+				c.lineCap = "round";
+				c.strokeStyle = "#000";
+				c.beginPath();
+				c.moveTo(movePt.x, movePt.y);
+				c.lineTo(linePt.x, linePt.y);
+				c.stroke();
+			}
+
+			c.restore();
+		}
 	}
 };
 
@@ -227,11 +287,6 @@ Environment.prototype.drawFocus = function(blocks){
 	this.context.stroke();
 };
 
-Environment.prototype.onFrame = function(){
-	this.draw();
-	requestAnimationFrame(this.onFrame);
-}
-
 Environment.prototype.move = function(offX, offY, offZ){
 	// TODO: Animate?
 	this.origin3D.x += offX;
@@ -262,60 +317,6 @@ Environment.prototype.tilt = function(offset){
 	}
 	var targetAngle = -this.tiltValue * Math.PI/(2 * this.tiltSteps);
 	this.animateTilt = new Animate(this, "tiltAngle", targetAngle, this.transitionTime);
-};
-
-
-function BlockTexture(src, x, y, width, height, faceMapping){
-	this.src = src;
-	this.x = x;
-	this.y = y;
-	this.width = width;
-	this.height = height;
-	this.faceMapping = faceMapping || [0,1,2,3,4,5];
-}
-
-BlockTexture.prototype.hasFace = function(faceIndex){
-	return this.faceMapping[faceIndex] != null;
-};
-
-BlockTexture.prototype.draw = function(env, faceIndex){
-	if (!this.hasFace(faceIndex)){
-		return;
-	}
-	var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
-	env.context.drawImage(this.src, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
-};
-
-BlockTexture.prototype.enableEditable = function(){
-	if (this.src instanceof HTMLCanvasElement){
-		// already edit-capable
-		return;
-	}
-
-	// copy src into editable canvas
-	var canvas = document.createElement("canvas");
-	canvas.width = this.width * (1 + Math.max.apply(Math, this.faceMapping));
-	canvas.height = this.height;
-
-	var context = canvas.getContext("2d");
-	context.drawImage(this.src, 
-		this.x, this.y, canvas.width, canvas.height,
-		0, 0, canvas.width, canvas.height);
-
-	this.src = canvas;
-};
-
-BlockTexture.prototype.getDrawingContext = function(faceIndex){
-	faceIndex = faceIndex || 0;
-
-	this.enableEditable();
-	var context = this.src.getContext("2d");
-
-	if (this.hasFace(faceIndex)){
-		var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
-		context.setTransform(1,0,0,1, srcX, this.y);
-	}
-	return context;
 };
 
 
@@ -350,7 +351,7 @@ Block.prototype.draw = function(env){
 };
 
 Block.prototype.drawFace = function(env, faceIndex){
-
+	// TODO: move to env; try to remove env dependency in block
 	var m = this.updateTransform(env, faceIndex);
 	if (m){
 
@@ -377,6 +378,88 @@ Block.prototype.updateTransform = function(env, faceIndex){
 	}
 
 	return null;
+};
+
+
+function BlockTexture(src, x, y, width, height, faceMapping){
+	this.src = src;
+	this.x = x;
+	this.y = y;
+	this.width = width;
+	this.height = height;
+	this.faceMapping = faceMapping || [0,1,2,3,4,5];
+	this.allowEditable = true;
+}
+
+BlockTexture.prototype.hasFace = function(faceIndex){
+	return this.faceMapping[faceIndex] != null;
+};
+
+BlockTexture.prototype.draw = function(env, faceIndex){
+	if (!this.hasFace(faceIndex)){
+		return;
+	}
+	var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
+	env.context.drawImage(this.src, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
+};
+
+BlockTexture.prototype.enableEditable = function(){
+	if (!this.allowEditable){
+		// not allowed to make this editable
+		return;
+	}
+
+	if (this.src instanceof HTMLCanvasElement){
+		// already edit-capable
+		return;
+	}
+
+	// copy src into editable canvas
+	var canvas = document.createElement("canvas");
+	canvas.width = this.width * (1 + Math.max.apply(Math, this.faceMapping));
+	canvas.height = this.height;
+
+	var context = canvas.getContext("2d");
+	context.imageSmoothingEnabled = false;
+	context.drawImage(this.src, 
+		this.x, this.y, canvas.width, canvas.height,
+		0, 0, canvas.width, canvas.height);
+	
+	// with independent canvas src, location
+	// of texture is reset to top left
+	this.x = 0;
+	this.y = 0;
+
+	this.src = canvas;
+};
+
+BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, clip){
+	if (!this.allowEditable){
+		return null;
+	}
+
+	faceIndex = faceIndex || 0;
+	if (clip == undefined){
+		clip = true;
+	}
+
+	this.enableEditable();
+	var context = this.src.getContext("2d");
+	context.save();
+
+	if (this.hasFace(faceIndex)){
+		// move transform to face location
+		var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
+		context.setTransform(1,0,0,1, srcX, this.y);
+
+		if (clip){
+			// clip texture to the face
+			context.beginPath();
+			context.rect(0, 0, this.width, this.height);
+			context.clip();
+		}
+	}
+	return context;
 };
 
 function BlockFace(block, faceIndex){

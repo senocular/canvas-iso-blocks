@@ -7,6 +7,12 @@ Point2D.prototype.clone = function(){
 	return new Point2D(this.x, this.y);
 };
 
+Point2D.prototype.copy = function(pt){
+	this.x = pt.x;
+	this.y = pt.y;
+	return this;
+};
+
 
 function Point3D(x,y,z){
 	this.x = x || 0;
