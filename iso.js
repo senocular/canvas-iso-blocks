@@ -2,92 +2,103 @@
        APP CODE
 /********************/
 
-var textures = null;
-var env = null;
+function App(){
+	this.texturesURL = "sides.fw.png";
+	this.canvasId = "canvas";
 
-function init(){
-	textures = new Image();
-	textures.onload = texturesLoaded;
-	textures.src = "sides.fw.png";
+	this.textures = null;
+	this.env = null;
+
+	this.texturesLoaded = this.texturesLoaded.bind(this);
+	this.handleKeyDown = this.handleKeyDown.bind(this);
+	this.handleMouseDown = this.handleMouseDown.bind(this);
+	this.handleMouseMove = this.handleMouseMove.bind(this);
+	this.handleMouseUp = this.handleMouseUp.bind(this);
 }
 
-function texturesLoaded(){
-	env = new Environment("canvas");
+App.prototype.init = function(){
+	this.textures = new Image();
+	this.textures.onload = this.texturesLoaded;
+	this.textures.src = this.texturesURL;
+	return this;
+}
 
-	var numbers = new BlockTexture(textures, 0,0,100,100);
-	var fence = new BlockTexture(textures, 0,100,25,25, [null,null,0,null,0,null]);
-	var grass = new BlockTexture(textures, 25,100,25,25, [0,1,3,3,2,2]);
+App.prototype.texturesLoaded = function(){
+	this.env = new Environment(this.canvasId);
 
+	var numbers = new BlockTexture(this.textures, new Rect(0,0,100,100));
+	var fence = new BlockTexture(this.textures, new Rect(0,100,25,25), [null,null,0,null,0,null], true);
+	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2]);
 
 	// TODO: use "Layouts" with-sub layouts
-	env.setBlocks(
+	this.env.setBlocks(
 		new Block(new Point3D(-1, 0,0), numbers),
 		new Block(new Point3D( 0, 0,0), numbers),
-		new Block(new Point3D( 0,-1,0), fence, true),
+		new Block(new Point3D( 0,-1,0), fence),
 		new Block(new Point3D( 1, 0,0), numbers),
-		new Block(new Point3D( 1,-1,0), fence, true),
+		new Block(new Point3D( 1,-1,0), fence),
 		new Block(new Point3D( 1, 1,0), numbers),
 		new Block(new Point3D(-1, 0,1), grass),
 		new Block(new Point3D( 0, 0,1), grass),
 		new Block(new Point3D( 1, 0,1), grass)
 	);
 
-	document.addEventListener("keydown", handleKeyDown);
-	env.canvas.addEventListener("mousedown", handleMouseDown);
-	env.canvas.addEventListener("mousemove", handleMouseMove);
-	document.addEventListener("mouseup", handleMouseUp);
+	document.addEventListener("keydown", this.handleKeyDown);
+	this.env.canvas.addEventListener("mousedown", this.handleMouseDown);
+	this.env.canvas.addEventListener("mousemove", this.handleMouseMove);
+	document.addEventListener("mouseup", this.handleMouseUp);
 }
 
-function handleKeyDown(event){
+App.prototype.handleKeyDown = function(event){
 
 	switch(event.keyCode){
 
 		case 37: // Left
 			if (event.ctrlKey){
-				env.spin(1);
+				this.env.spin(1);
 			}else{
-				env.move(1, 0, 0);
+				this.env.move(1, 0, 0);
 			}
 			break;
 
 		case 38: // Up
 			if (event.ctrlKey){
-				env.tilt(1);
+				this.env.tilt(1);
 			}else{
-				env.move(0, 0, 1);
+				this.env.move(0, 0, 1);
 			}
 			break;
 
 		case 39: // Right
 			if (event.ctrlKey){
-				env.spin(-1);
+				this.env.spin(-1);
 			}else{
-				env.move(-1, 0, 0);
+				this.env.move(-1, 0, 0);
 			}
 			break;
 
 		case 40: // Down
 			if (event.ctrlKey){
-				env.tilt(-1);
+				this.env.tilt(-1);
 			}else{
-				env.move(0, 0, -1);
+				this.env.move(0, 0, -1);
 			}
 			break;
 	}
 }
 
-function handleMouseDown(event){
-	env.pointerDown = true;
+App.prototype.handleMouseDown = function(event){
+	this.env.pointerDown = true;
 	event.preventDefault();
 }
 
-function handleMouseMove(event){
-	env.updatePointer( Mouse.get(event) );
+App.prototype.handleMouseMove = function(event){
+	this.env.updatePointer( Mouse.get(event) );
 	event.preventDefault();
 }
 
-function handleMouseUp(event){
-	env.pointerDown = false;
+App.prototype.handleMouseUp = function(event){
+	this.env.pointerDown = false;
 	event.preventDefault();
 }
 
@@ -103,7 +114,7 @@ function Environment(canvasId){
 
 	this.origin2D = new Point2D(this.canvas.width/2, this.canvas.height/2);
 	this.origin3D = new Point3D(-0.5, 0, -0.5);
-	this.transform = new Matrix3D();
+	this.viewTransform = new Matrix3D();
 	this.scale = 100;
 
 	this.pointer = new Point2D(0,0);
@@ -131,7 +142,7 @@ function Environment(canvasId){
 	this.onFrame = this.onFrame.bind(this);
 
 	// init
-	// TODO: don't animate init
+	// TODO: don't animate init?
 	this.spin(0);
 	this.tilt(2);
 
@@ -162,7 +173,7 @@ Environment.prototype.onFrame = function(){
 	requestAnimationFrame(this.onFrame);
 };
 
-Environment.prototype.clear = function(){
+Environment.prototype.clearCanvas = function(){
 	this.context.setTransform(1,0,0,1,0,0);
 	this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 	this.lastFacesUnderPointer.length = 0;
@@ -171,12 +182,12 @@ Environment.prototype.clear = function(){
 };
 
 Environment.prototype.draw = function(){
-	this.clear();
+	this.clearCanvas();
 
-	this.transform.identity();
-	this.transform.rotateX(this.tiltAngle);
-	this.transform.rotateY(this.spinAngle);
-	this.commitTransform();
+	this.viewTransform.identity();
+	this.viewTransform.rotateX(this.tiltAngle);
+	this.viewTransform.rotateY(this.spinAngle);
+	this.commitViewTransform();
 
 	this.placeBlocks();
 	this.drawBlocks();
@@ -189,6 +200,11 @@ Environment.prototype.draw = function(){
 		this.highlightFace(topFace);
 	}
 
+	// drawing here is applied to textures after
+	// the faces are already drawn since the draw
+	// loop is the same loop that identifies blocks
+	// under the pointer.  Texture updates then only
+	// happen in the next frame but its negligible
 	if (this.pointerDown){
 		
 		if (topFace){
@@ -206,76 +222,8 @@ Environment.prototype.draw = function(){
 	}
 };
 
-Environment.prototype.getPointerFace = function(list){
-	if (!list){
-		list = this.facesUnderPointer;
-	}
-
-	var topFaceIndex = list.length - 1;
-	if (topFaceIndex >= 0){
-		return list[topFaceIndex];
-	}
-
-	return null;
-};
-
-Environment.prototype.highlightFace = function(face){
-	var fillStyle = "rgba(255,0,0,0.25)";
-
-	face.block.updateTransform(this, face.index);
-	this.context.fillStyle = fillStyle;
-	this.context.fillRect(0, 0, this.scale, this.scale);
-};
-
-Environment.prototype.drawPointerLine = function(face){
-	var lineWidth = 10;
-	var lineCap = "round";
-	var strokeStyle = "#000";
-
-	var texture = face.block.texture;
-	var c = texture.getDrawingContextForFace(face.index);
-
-	if (!c){
-		// drawing may not be allowed
-		return;
-	}
-
-	var m = this.faces[face.index].clone();
-	var x = m.x + face.block.placement.x;
-	var y = m.y + face.block.placement.y;
-	m.scale(this.scale/texture.width, this.scale/texture.height);
-	m.x = x; // position is not scaled for the texture matrix
-	m.y = y;
-
-
-	if (m.invert()){
-		var movePt = this.lastPointer.clone();
-		var linePt = this.pointer.clone();
-		m.transformPoint(movePt);
-		m.transformPoint(linePt);
-
-		// in case width != height, the values are averaged
-		var lineScaleFactor = (texture.width + texture.height)/(2 * this.scale);
-		
-		c.lineWidth = lineWidth * lineScaleFactor;
-		c.lineCap = lineCap;
-		c.strokeStyle = strokeStyle;
-
-		c.beginPath();
-		c.moveTo(movePt.x, movePt.y);
-		c.lineTo(linePt.x, linePt.y);
-
-		c.stroke();
-	}
-
-	// getDrawingContextForFace saves the context because
-	// it clips, so the state should be popped from the
-	// stack when we're done with it
-	c.restore(); 
-};
-
-Environment.prototype.commitTransform = function(){
-	var t = this.transform;
+Environment.prototype.commitViewTransform = function(){
+	var t = this.viewTransform;
 	this.faces = [
 		new Matrix2D( t.a,t.d,   t.c,t.f,  0,0),
 		new Matrix2D( t.a,t.d,  -t.c,-t.f, t.b+t.c,t.e+t.f),
@@ -304,15 +252,76 @@ Environment.prototype.commitTransform = function(){
 
 Environment.prototype.placeBlocks = function(blocks){
 	for (var i=0, n=this.blocks.length; i<n; i++){
-		this.blocks[i].place(this);
+		this.placeBlock( this.blocks[i] );
 	}
+	this.blocks.sort(Environment.sortOnPlacedZ);
+};
+
+Environment.prototype.placeBlock = function(block){
+	block.resetPlacement();
+	block.placement.addPoint(this.origin3D);
+	this.viewTransform.transformPoint(block.placement);
+	block.placement.scale(this.scale);
 };
 
 Environment.prototype.drawBlocks = function(blocks){
-	this.blocks.sort(Environment.sortOnPlacedZ);
 	for (var i=0, n=this.blocks.length; i<n; i++){
-		this.blocks[i].draw(this);
+		this.drawBlock( this.blocks[i] );
 	}
+};
+
+Environment.prototype.drawBlock = function(block){
+	if (block.texture.twoSided){
+		this.drawBlockFaces(block, this.hiddenFaceIndices);
+	}
+
+	this.drawBlockFaces(block, this.visibleFaceIndices);
+};
+
+Environment.prototype.drawBlockFaces = function(block, indicesList){
+	var faceIndex, face;
+	var i = indicesList.length;
+	while (i--){
+		face = block.faces[ indicesList[i] ];
+		if (face){
+			this.drawBlockFace(face);
+		}
+	}
+};
+
+Environment.prototype.drawBlockFace = function(face){
+	var m = this.getFaceTransform(face);
+	this.updateCanvasTransform(m);
+
+	// determine if face is under pointer
+	if (m.invert()){
+		var mousePt = this.pointer.clone();
+		m.transformPoint(mousePt);
+		if (mousePt.x > 0 && mousePt.x < this.scale && 
+			mousePt.y > 0 && mousePt.y < this.scale) {
+			this.facesUnderPointer.push(face);
+		}
+	}
+
+	// perform rendering to screen
+	var texture = face.block.texture;
+	var rect = texture.getFaceRect(face.index);
+	if (rect){
+		this.context.drawImage(texture.src, 
+			rect.x, rect.y, rect.width, rect.height,
+			0,0, this.scale, this.scale);
+	}
+};
+
+Environment.prototype.getFaceTransform = function(face){
+	var m = this.faces[face.index].clone();
+	m.x += face.block.placement.x;
+	m.y += face.block.placement.y;
+	return m;
+};
+
+Environment.prototype.updateCanvasTransform = function(m){
+	this.context.setTransform(m.a, m.b, m.c, m.d, m.x, m.y);
 };
 
 Environment.prototype.drawFocus = function(blocks){
@@ -327,6 +336,75 @@ Environment.prototype.drawFocus = function(blocks){
 	this.context.lineWidth = 3;
 	this.context.strokeStyle = "rgba(0,0,0,0.5)";
 	this.context.stroke();
+};
+
+Environment.prototype.getPointerFace = function(list){
+	if (!list){
+		list = this.facesUnderPointer;
+	}
+
+	var topFaceIndex = list.length - 1;
+	if (topFaceIndex >= 0){
+		return list[topFaceIndex];
+	}
+
+	return null;
+};
+
+Environment.prototype.highlightFace = function(face){
+	var fillStyle = "rgba(255,0,0,0.25)";
+
+	var m = this.getFaceTransform(face);
+	this.updateCanvasTransform(m);
+	this.context.fillStyle = fillStyle;
+	this.context.fillRect(0, 0, this.scale, this.scale);
+};
+
+Environment.prototype.drawPointerLine = function(face){
+	var lineWidth = 10;
+	var lineCap = "round";
+	var strokeStyle = "#000";
+
+	var texture = face.block.texture;
+	var c = texture.getDrawingContextForFace(face.index);
+
+	if (!c){
+		// drawing may not be allowed
+		return;
+	}
+
+	var m = this.faces[face.index].clone();
+	var x = m.x + face.block.placement.x;
+	var y = m.y + face.block.placement.y;
+	m.scale(this.scale/texture.rect.width, this.scale/texture.rect.height);
+	m.x = x; // position is not scaled for the texture matrix
+	m.y = y;
+
+
+	if (m.invert()){
+		var movePt = this.lastPointer.clone();
+		var linePt = this.pointer.clone();
+		m.transformPoint(movePt);
+		m.transformPoint(linePt);
+
+		// in case width != height, the values are averaged
+		var lineScaleFactor = (texture.rect.width + texture.rect.height)/(2 * this.scale);
+
+		c.lineWidth = lineWidth * lineScaleFactor;
+		c.lineCap = lineCap;
+		c.strokeStyle = strokeStyle;
+
+		c.beginPath();
+		c.moveTo(movePt.x, movePt.y);
+		c.lineTo(linePt.x, linePt.y);
+
+		c.stroke();
+	}
+
+	// getDrawingContextForFace saves the context because
+	// it clips, so the state should be popped from the
+	// stack when we're done with it
+	c.restore(); 
 };
 
 Environment.prototype.move = function(offX, offY, offZ){
@@ -362,74 +440,34 @@ Environment.prototype.tilt = function(offset){
 };
 
 
-function Block(loc, texture, twoSided){
+function Block(loc, texture){
 	this.location = loc;
 	this.placement = this.location.clone();
 	this.texture = texture;
-	this.twoSided = twoSided || false;
+	this.faces = [];
+	this.updateFaces();
 }
 
-Block.prototype.place = function(env){
-	this.placement.copy(this.location);
-	this.placement.addPoint(env.origin3D);
-	env.transform.transformPoint(this.placement);
-	this.placement.scale(env.scale);
-};
-
-Block.prototype.draw = function(env){
-	var i;
-
-	if (this.twoSided){
-		i = env.hiddenFaceIndices.length;
-		while (i--){
-			this.drawFace(env, env.hiddenFaceIndices[i] );
-		}
-	}
-
-	i = env.visibleFaceIndices.length;
+Block.prototype.updateFaces = function(){
+	var i = 6; // 6 sides to a block
 	while (i--){
-		this.drawFace(env, env.visibleFaceIndices[i] );
-	}
-};
-
-Block.prototype.drawFace = function(env, faceIndex){
-	// TODO: move to env; try to remove env dependency in block
-	var m = this.updateTransform(env, faceIndex);
-	if (m){
-
-		if (m.invert()){
-			var mousePt = env.pointer.clone();
-			m.transformPoint(mousePt);
-			if (mousePt.x > 0 && mousePt.x < env.scale && 
-				mousePt.y > 0 && mousePt.y < env.scale) {
-				env.facesUnderPointer.push(new BlockFace(this, faceIndex));
-			}
+		if (this.texture.hasFace(i)){
+			this.faces[i] = new BlockFace(this, i);
 		}
-
-		this.texture.draw(env, faceIndex);
 	}
 };
 
-Block.prototype.updateTransform = function(env, faceIndex){
-	if (this.texture.hasFace(faceIndex)){
-		var m = env.faces[faceIndex].clone();
-		m.x += this.placement.x;
-		m.y += this.placement.y;
-		env.context.setTransform(m.a, m.b, m.c, m.d, m.x, m.y);
-		return m;
-	}
-
-	return null;
+Block.prototype.resetPlacement = function(){
+	this.placement.copy(this.location);
 };
 
 
-function BlockTexture(src, x, y, width, height, faceMapping){
+function BlockTexture(src, rect, faceMapping, twoSided){
 	this.src = src;
-	this.x = x;
-	this.y = y;
-	this.width = width;
-	this.height = height;
+	this.rect = rect; // of first face (0)
 	this.faceMapping = faceMapping || [0,1,2,3,4,5];
+	this.twoSided = twoSided || false;
+
 	this.allowEditable = true;
 }
 
@@ -437,46 +475,53 @@ BlockTexture.prototype.hasFace = function(faceIndex){
 	return this.faceMapping[faceIndex] != null;
 };
 
-BlockTexture.prototype.draw = function(env, faceIndex){
+BlockTexture.prototype.getFaceRect = function(faceIndex){
 	if (!this.hasFace(faceIndex)){
-		return;
+		return null;
 	}
-	var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
-	env.context.drawImage(this.src, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
+
+	var faceRect = this.rect.clone();
+	faceRect.x += this.faceMapping[faceIndex] * this.rect.width;
+	return faceRect;
 };
 
 BlockTexture.prototype.enableEditable = function(){
 	if (!this.allowEditable){
 		// not allowed to make this editable
-		return;
+		return false;
 	}
 
 	if (this.src instanceof HTMLCanvasElement){
 		// already edit-capable
-		return;
+		return true;
 	}
 
 	// copy src into editable canvas
 	var canvas = document.createElement("canvas");
-	canvas.width = this.width * (1 + Math.max.apply(Math, this.faceMapping));
-	canvas.height = this.height;
+	canvas.width = this.rect.width * (1 + Math.max.apply(Math, this.faceMapping));
+	canvas.height = this.rect.height;
 
 	var context = canvas.getContext("2d");
 	context.imageSmoothingEnabled = false;
 	context.drawImage(this.src, 
-		this.x, this.y, canvas.width, canvas.height,
+		this.rect.x, this.rect.y, canvas.width, canvas.height,
 		0, 0, canvas.width, canvas.height);
 	
 	// with independent canvas src, location
 	// of texture is reset to top left
-	this.x = 0;
-	this.y = 0;
+	this.rect.x = 0;
+	this.rect.y = 0;
 
 	this.src = canvas;
+	return true;
 };
 
 BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, clip){
 	if (!this.allowEditable){
+		return null;
+	}
+
+	if (!this.enableEditable()){
 		return null;
 	}
 
@@ -485,24 +530,25 @@ BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, clip){
 		clip = true;
 	}
 
-	this.enableEditable();
 	var context = this.src.getContext("2d");
 	context.save();
 
 	if (this.hasFace(faceIndex)){
 		// move transform to face location
-		var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
-		context.setTransform(1,0,0,1, srcX, this.y);
+		var rect = this.getFaceRect(faceIndex);
+		context.setTransform(1,0,0,1, rect.x, rect.y);
 
 		if (clip){
 			// clip texture to the face
+			// position already defined by tansform
 			context.beginPath();
-			context.rect(0, 0, this.width, this.height);
+			context.rect(0, 0, rect.width, rect.height);
 			context.clip();
 		}
 	}
 	return context;
 };
+
 
 function BlockFace(block, index){
 	this.block = block;
@@ -510,4 +556,4 @@ function BlockFace(block, index){
 };
 
 
-init();
+var app = new App().init();
