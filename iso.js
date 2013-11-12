@@ -28,19 +28,20 @@ App.prototype.texturesLoaded = function(){
 
 	var numbers = new BlockTexture(this.textures, new Rect(0,0,100,100));
 	var fence = new BlockTexture(this.textures, new Rect(0,100,25,25), [null,null,0,null,0,null], true);
-	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2]);
+	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2], false, false);
 
 	// TODO: use "Layouts" with-sub layouts
 	this.env.setBlocks(
+		new Block(new Point3D( 0,-1,0), fence),
+		new Block(new Point3D( 1,-1,0), fence),
 		new Block(new Point3D(-1, 0,0), numbers),
 		new Block(new Point3D( 0, 0,0), numbers),
-		new Block(new Point3D( 0,-1,0), fence),
 		new Block(new Point3D( 1, 0,0), numbers),
-		new Block(new Point3D( 1,-1,0), fence),
-		new Block(new Point3D( 1, 1,0), numbers),
 		new Block(new Point3D(-1, 0,1), grass),
 		new Block(new Point3D( 0, 0,1), grass),
-		new Block(new Point3D( 1, 0,1), grass)
+		new Block(new Point3D( 1, 0,1), grass),
+		new Block(new Point3D(-1, 1,0), numbers),
+		new Block(new Point3D( 1, 1,0), numbers)
 	);
 
 	document.addEventListener("keydown", this.handleKeyDown);
@@ -462,13 +463,12 @@ Block.prototype.resetPlacement = function(){
 };
 
 
-function BlockTexture(src, rect, faceMapping, twoSided){
+function BlockTexture(src, rect, faceMapping, twoSided, allowEditable){
 	this.src = src;
 	this.rect = rect; // of first face (0)
 	this.faceMapping = faceMapping || [0,1,2,3,4,5];
 	this.twoSided = twoSided || false;
-
-	this.allowEditable = true;
+	this.allowEditable = allowEditable == undefined ? true : allowEditable;
 }
 
 BlockTexture.prototype.hasFace = function(faceIndex){
