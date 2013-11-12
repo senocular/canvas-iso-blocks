@@ -10,24 +10,28 @@ function init(){
 function texturesLoaded(){
 	env = new Environment("canvas");
 
-	var texture = new BlockTexture(textures, 0,0,100,100);
-	var textureRepeated = new BlockTexture(textures, 0,0,100,100, [0,1,2,2,2,2]);
+	var numbers = new BlockTexture(textures, 0,0,100,100);
 
 	var fence = new BlockTexture(textures, 0,100,25,25, [null,null,0,null,0,null]);
 	var grass = new BlockTexture(textures, 25,100,25,25, [0,1,2,2,2,2]);
 
 	// DEBUG: dynamic texture editing
-	var c = texture.getDrawingContext(0);
-	c.fillStyle = "#000";
-	c.fillRect(0, 0, 25, 25);
+	var c = numbers.getDrawingContext(4);
+	c.save();
+	c.beginPath();
+	c.rect(0,0,numbers.width,numbers.height);
+	c.clip();
+	c.fillStyle = "rgba(0,0,255,0.25)";
+	c.fillRect(0, 0, 300, 100);
+	c.restore();
 
 	env.setBlocks(
-		new Block(new Point3D(-1, 0,0), texture),
-		new Block(new Point3D( 0, 0,0), texture),
+		new Block(new Point3D(-1, 0,0), numbers),
+		new Block(new Point3D( 0, 0,0), numbers),
 		new Block(new Point3D( 0,-1,0), fence, true),
-		new Block(new Point3D( 1, 0,0), texture),
+		new Block(new Point3D( 1, 0,0), numbers),
 		new Block(new Point3D( 1,-1,0), fence, true),
-		new Block(new Point3D( 1, 1,0), textureRepeated),
+		new Block(new Point3D( 1, 1,0), numbers),
 		new Block(new Point3D(-1, 0,1), grass),
 		new Block(new Point3D( 0, 0,1), grass),
 		new Block(new Point3D( 1, 0,1), grass)
