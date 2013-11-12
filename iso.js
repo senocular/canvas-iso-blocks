@@ -96,6 +96,7 @@ function Environment(canvasId){
 	this.scale = 100;
 
 	this.pointer = new Point2D(0,0);
+	this.facesUnderPointer = [];
 
 	this.blocks = [];
 	this.faces = [];
@@ -140,6 +141,7 @@ Environment.prototype.setBlocks = function(/* args */){
 Environment.prototype.clear = function(){
 	this.context.setTransform(1,0,0,1,0,0);
 	this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+	this.facesUnderPointer.length = 0;
 };
 
 Environment.prototype.draw = function(){
@@ -153,6 +155,17 @@ Environment.prototype.draw = function(){
 	this.placeBlocks();
 	this.drawBlocks();
 	this.drawFocus();
+
+	// show mouse face
+
+	var lastFaceIndex = this.facesUnderPointer.length - 1;
+	if (lastFaceIndex >= 0){
+		var lastFace = this.facesUnderPointer[lastFaceIndex];
+
+		lastFace.block.updateTransform(this, lastFace.faceIndex);
+		this.context.fillStyle = "rgba(255,0,0,0.25)";
+		this.context.fillRect(0,0, env.scale,env.scale);
+	}
 };
 
 Environment.prototype.commitTransform = function(){
@@ -332,38 +345,39 @@ Block.prototype.draw = function(env){
 	}
 };
 
-Block.prototype.drawFace = function(env, index){
-	if (this.texture.hasFace(index)){
-		var m = env.faces[index];
-		var x = this.placement.x + m.x;
-		var y = this.placement.y + m.y;
-		env.context.setTransform(m.a, m.b, m.c, m.d, x, y);
+Block.prototype.drawFace = function(env, faceIndex){
 
-		
-		// KLUDGE: Mouse interaction
+	var m = this.updateTransform(env, faceIndex);
+	if (m){
 
-
-		var containsMouse = false;
-		var mousePt;
-		var mouseM = m.clone();
-		mouseM.x = x;
-		mouseM.y = y;
-		if (mouseM.invert()){
-			mousePt = env.pointer.clone();
-			mouseM.transformPoint(mousePt);
-			containsMouse = (
-				mousePt.x > 0 && mousePt.x < env.scale && 
-				mousePt.y > 0 && mousePt.y < env.scale
-			);
+		if (m.invert()){
+			var mousePt = env.pointer.clone();
+			m.transformPoint(mousePt);
+			if (mousePt.x > 0 && mousePt.x < env.scale && 
+				mousePt.y > 0 && mousePt.y < env.scale) {
+				env.facesUnderPointer.push(new BlockFace(this, faceIndex));
+			}
 		}
 
-		this.texture.draw(env, index);
-
-		if (containsMouse) {
-			env.context.fillStyle = "rgba(255,0,0,0.25)";
-			env.context.fillRect(0,0, env.scale,env.scale);
-		}
+		this.texture.draw(env, faceIndex);
 	}
+};
+
+Block.prototype.updateTransform = function(env, faceIndex){
+	if (this.texture.hasFace(faceIndex)){
+		var m = env.faces[faceIndex].clone();
+		m.x += this.placement.x;
+		m.y += this.placement.y;
+		env.context.setTransform(m.a, m.b, m.c, m.d, m.x, m.y);
+		return m;
+	}
+
+	return null;
+};
+
+function BlockFace(block, faceIndex){
+	this.block = block;
+	this.faceIndex = faceIndex;
 };
 
 
