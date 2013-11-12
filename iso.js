@@ -12,14 +12,25 @@ function texturesLoaded(){
 
 	var texture = new BlockTexture(textures, 0,0,100,100);
 	var textureRepeated = new BlockTexture(textures, 0,0,100,100, [0,1,2,2,2,2]);
-	var texturePartial = new BlockTexture(textures, 0,0,100,100, [null,null,2,null,2,null]);
+
+	var fence = new BlockTexture(textures, 0,100,25,25, [null,null,0,null,0,null]);
+	var grass = new BlockTexture(textures, 25,100,25,25, [0,1,2,2,2,2]);
+
+	// DEBUG: dynamic texture editing
+	var c = texture.getDrawingContext(0);
+	c.fillStyle = "#000";
+	c.fillRect(0, 0, 25, 25);
 
 	env.setBlocks(
-		new Block(new Point3D( 0,0,0), texture),
-		new Block(new Point3D( 1,0,0), texture),
-		new Block(new Point3D(-1,0,0), texture),
-		new Block(new Point3D( 1,1,0), textureRepeated),
-		new Block(new Point3D( 0,-1,0), texturePartial, true)
+		new Block(new Point3D(-1, 0,0), texture),
+		new Block(new Point3D( 0, 0,0), texture),
+		new Block(new Point3D( 0,-1,0), fence, true),
+		new Block(new Point3D( 1, 0,0), texture),
+		new Block(new Point3D( 1,-1,0), fence, true),
+		new Block(new Point3D( 1, 1,0), textureRepeated),
+		new Block(new Point3D(-1, 0,1), grass),
+		new Block(new Point3D( 0, 0,1), grass),
+		new Block(new Point3D( 1, 0,1), grass)
 	);
 
 	document.addEventListener("keydown", handleKeyDown);
@@ -237,8 +248,8 @@ Environment.prototype.tilt = function(offset){
 };
 
 
-function BlockTexture(image, x, y, width, height, faceMapping){
-	this.image = image;
+function BlockTexture(src, x, y, width, height, faceMapping){
+	this.src = src;
 	this.x = x;
 	this.y = y;
 	this.width = width;
@@ -246,16 +257,48 @@ function BlockTexture(image, x, y, width, height, faceMapping){
 	this.faceMapping = faceMapping || [0,1,2,3,4,5];
 }
 
+BlockTexture.prototype.hasFace = function(faceIndex){
+	return this.faceMapping[faceIndex] != null;
+};
+
 BlockTexture.prototype.draw = function(env, faceIndex){
 	if (!this.hasFace(faceIndex)){
 		return;
 	}
 	var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
-	env.context.drawImage(this.image, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
+	env.context.drawImage(this.src, srcX,this.y, this.width,this.height, 0,0, env.scale,env.scale);
 };
 
-BlockTexture.prototype.hasFace = function(faceIndex){
-	return this.faceMapping[faceIndex] != null;
+BlockTexture.prototype.enableEditable = function(){
+	if (this.src instanceof HTMLCanvasElement){
+		// already edit-capable
+		return;
+	}
+
+	// copy src into editable canvas
+	var canvas = document.createElement("canvas");
+	canvas.width = this.width * (1 + Math.max.apply(Math, this.faceMapping));
+	canvas.height = this.height;
+
+	var context = canvas.getContext("2d");
+	context.drawImage(this.src, 
+		this.x, this.y, canvas.width, canvas.height,
+		0, 0, canvas.width, canvas.height);
+
+	this.src = canvas;
+};
+
+BlockTexture.prototype.getDrawingContext = function(faceIndex){
+	faceIndex = faceIndex || 0;
+
+	this.enableEditable();
+	var context = this.src.getContext("2d");
+
+	if (this.hasFace(faceIndex)){
+		var srcX = this.x + this.faceMapping[faceIndex] * this.width; 
+		context.setTransform(1,0,0,1, srcX, this.y);
+	}
+	return context;
 };
 
 
