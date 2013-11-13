@@ -55,14 +55,7 @@ App.prototype.texturesLoaded = function(){
 			new Block(new Point3D( 0, 3, 3), stone)
 		])
 	]);
-
-	var env = this.env;
-	window.get = function(){
-		console.log(env.layout.items)
-	}
-
-	this.env.draw();
-
+	
 	document.addEventListener("keydown", this.handleKeyDown);
 	this.env.canvas.addEventListener("mousedown", this.handleMouseDown);
 	this.env.canvas.addEventListener("mousemove", this.handleMouseMove);
