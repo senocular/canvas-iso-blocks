@@ -264,12 +264,12 @@ Environment.prototype.drawBlockFace = function(face){
 
 	// perform rendering to screen
 	var texture = face.block.texture;
-	var rect = texture.getFaceRect(face.index);
-	if (rect){
+	var textureRect = texture.getFaceRect(face.index);
+	if (textureRect){
 		this.updateCanvasTransform(face.transform);
 		this.context.drawImage(texture.src, 
-			rect.x, rect.y, rect.width, rect.height,
-			0,0, face.block.scale, face.block.scale);
+			textureRect.x, textureRect.y, textureRect.width, textureRect.height,
+			0, 0, face.block.scale, face.block.scale);
 	}
 };
 
@@ -295,14 +295,14 @@ Environment.prototype.drawFocus = function(blocks){
 	this.context.stroke();
 };
 
-Environment.prototype.getPointerFace = function(list){
-	if (!list){
-		list = this.facesUnderPointer;
+Environment.prototype.getPointerFace = function(faceList){
+	if (!faceList){
+		faceList = this.facesUnderPointer;
 	}
 
-	var topFaceIndex = list.length - 1;
+	var topFaceIndex = faceList.length - 1;
 	if (topFaceIndex >= 0){
-		return list[topFaceIndex];
+		return faceList[topFaceIndex];
 	}
 
 	return null;
@@ -329,21 +329,21 @@ Environment.prototype.drawPointerLine = function(face){
 		return;
 	}
 
-	var faceTransform = face.transform.clone();
-	var x = faceTransform.x;
-	var y = faceTransform.y;
+	var faceAntiTransform = face.transform.clone();
+	var x = faceAntiTransform.x;
+	var y = faceAntiTransform.y;
 	// block size to texture size scaling (not applied to translation)
 	var textureScaleX = face.block.scale/texture.rect.width;
 	var textureScaleY = face.block.scale/texture.rect.height;
-	faceTransform.scale(textureScaleX, textureScaleY);
-	faceTransform.x = x;
-	faceTransform.y = y;
+	faceAntiTransform.scale(textureScaleX, textureScaleY);
+	faceAntiTransform.x = x;
+	faceAntiTransform.y = y;
 
-	if (faceTransform.invert()){
+	if (faceAntiTransform.invert()){
 		var movePt = this.lastPointer.clone();
 		var linePt = this.pointer.clone();
-		faceTransform.transformPoint(movePt);
-		faceTransform.transformPoint(linePt);
+		faceAntiTransform.transformPoint(movePt);
+		faceAntiTransform.transformPoint(linePt);
 
 		// in case width != height, the values are averaged
 		var lineScaleFactor = (texture.rect.width + texture.rect.height)/(2 * face.block.scale);
@@ -561,7 +561,7 @@ BlockTexture.prototype.enableEditable = function(){
 	return true;
 };
 
-BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, clip){
+BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, isClipped){
 	if (!this.allowEditable){
 		return null;
 	}
@@ -571,8 +571,8 @@ BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, clip){
 	}
 
 	faceIndex = faceIndex || 0;
-	if (clip == undefined){
-		clip = true;
+	if (isClipped == undefined){
+		isClipped = true;
 	}
 
 	var context = this.src.getContext("2d");
@@ -580,14 +580,14 @@ BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, clip){
 
 	if (this.hasFace(faceIndex)){
 		// move transform to face location
-		var rect = this.getFaceRect(faceIndex);
-		context.setTransform(1,0,0,1, rect.x, rect.y);
+		var faceRect = this.getFaceRect(faceIndex);
+		context.setTransform(1,0,0,1, faceRect.x, faceRect.y);
 
-		if (clip){
+		if (isClipped){
 			// clip texture to the face
 			// position already defined by tansform
 			context.beginPath();
-			context.rect(0, 0, rect.width, rect.height);
+			context.rect(0, 0, faceRect.width, faceRect.height);
 			context.clip();
 		}
 	}
