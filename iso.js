@@ -43,6 +43,8 @@ App.prototype.texturesLoaded = function(){
 		new Block(new Point3D( 1, 1,0), numbers)
 	);
 
+	this.env.draw();
+
 	document.addEventListener("keydown", this.handleKeyDown);
 	this.env.canvas.addEventListener("mousedown", this.handleMouseDown);
 	this.env.canvas.addEventListener("mousemove", this.handleMouseMove);
@@ -147,7 +149,7 @@ function Environment(canvasId){
 	this.tilt(2);
 
 	// constantly update
-	this.onFrame();
+	//this.onFrame();
 }
 
 Environment.isFaceFrontFacing = function(m){
@@ -264,6 +266,7 @@ Environment.prototype.drawBlockFace = function(face){
 	var texture = face.block.texture;
 	var rect = texture.getFaceRect(face.index);
 	if (rect){
+		console.log("face")
 		this.context.drawImage(texture.src, 
 			rect.x, rect.y, rect.width, rect.height,
 			0,0, this.scale, this.scale);
@@ -272,6 +275,11 @@ Environment.prototype.drawBlockFace = function(face){
 
 Environment.prototype.getFaceTransform = function(face){
 	var m = this.faceTransforms[face.index].clone();
+
+		// TODO: incorporate into placement
+		//face.x = this.origin2D.x + face.x * this.scale;
+		//face.y = this.origin2D.y + face.y * this.scale;
+
 	m.x += face.block.placement.x;
 	m.y += face.block.placement.y;
 	return m;
@@ -407,7 +415,13 @@ function BlockLayoutItem(loc){
 }
 
 BlockLayoutItem.prototype.resetPlacement = function(){
+};
+
+BlockLayoutItem.prototype.place = function(offset, viewTransform, scale){
 	this.placement.copy(this.location);
+	this.placement.addPoint(offset);
+	viewTransform.transformPoint(this.placement);
+	this.placement.scale(scale);
 };
 
 BlockLayoutItem.prototype.draw = function(env){
@@ -434,17 +448,11 @@ BlockLayout.prototype.draw = function(env){
 
 BlockLayout.prototype.placeItems = function(env){
 	for (var i=0, n=this.items.length; i<n; i++){
-		this.placeItem( env, this.items[i] );
+		this.items[i].place(this.placement, env.viewTransform, this.scale);
 	}
 	this.items.sort(Environment.sortOnPlacedZ);
 };
 
-BlockLayout.prototype.placeItem = function(env, item){
-	item.resetPlacement();
-	item.placement.addPoint(this.placement);
-	env.viewTransform.transformPoint(item.placement);
-	item.placement.scale(this.scale);
-};
 
 BlockLayout.prototype.drawItems = function(env){
 	for (var i=0, n=this.items.length; i<n; i++){
@@ -470,6 +478,27 @@ Block.prototype.updateFaces = function(){
 	}
 };
 
+Block.prototype.place = function(offset, viewTransform, scale) {
+	BlockLayout.prototype.place.call(this, offset, viewTransform, scale);
+
+	var i = this.faces.length;
+	while (i--){
+		face = this.faces[i];
+		if (face){// TODO: need env
+			face.transform.copy( env.faceTransforms[face.index] );
+			var m = face.transform
+			
+
+			// TODO: incorporate into placement
+			face.x = this.origin2D.x + face.x * this.scale;
+			face.y = this.origin2D.y + face.y * this.scale;
+
+			m.x += this.placement.x;
+			m.y += this.placement.y;
+					
+		}
+	}
+}
 Block.prototype.draw = function(env){
 	if (this.texture.twoSided){
 		this.drawFaces(env, env.hiddenFaceIndices);
@@ -579,6 +608,7 @@ BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, clip){
 function BlockFace(block, index){
 	this.block = block;
 	this.index = index;
+	this.transform = new Matrix2D();
 };
 
 

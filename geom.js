@@ -79,6 +79,15 @@ Matrix2D.prototype.clone = function() {
 	return new Matrix2D(this.a,	this.b,	this.c,	this.d,	this.x,	this.y);
 };
 
+Matrix2D.prototype.copy = function(m) {
+	this.a = m.a;
+	this.b = m.b;
+	this.c = m.c;
+	this.d = m.d;
+	this.x = m.x;
+	this.y = m.y;
+};
+
 Matrix2D.prototype.identity = function() {
 	this.a = 1;
 	this.b = 0;
