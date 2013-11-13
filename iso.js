@@ -21,7 +21,7 @@ App.prototype.init = function(){
 	this.textures.onload = this.texturesLoaded;
 	this.textures.src = this.texturesURL;
 	return this;
-}
+};
 
 App.prototype.texturesLoaded = function(){
 	this.env = new Environment(this.canvasId);
@@ -29,19 +29,37 @@ App.prototype.texturesLoaded = function(){
 	var numbers = new BlockTexture(this.textures, new Rect(0,0,100,100));
 	var fence = new BlockTexture(this.textures, new Rect(0,100,25,25), [null,null,0,null,0,null], true);
 	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2], false, false);
+	var stone = new BlockTexture(this.textures, new Rect(125,100,25,25), [0,1,1,1,0,0], false, false);
 
-	this.env.layout.setItems(
-		new Block(new Point3D( 0,-1,0), fence),
-		new Block(new Point3D( 1,-1,0), fence),
-		new Block(new Point3D(-1, 0,0), numbers),
-		new Block(new Point3D( 0, 0,0), numbers),
-		new Block(new Point3D( 1, 0,0), numbers),
-		new Block(new Point3D(-1, 0,1), grass),
-		new Block(new Point3D( 0, 0,1), grass),
-		new Block(new Point3D( 1, 0,1), grass),
-		new Block(new Point3D(-1, 1,0), numbers),
-		new Block(new Point3D( 1, 1,0), numbers)
-	);
+	this.env.layout.setItems([
+		new Block(new Point3D( 1,-1, 0), fence),
+		new Block(new Point3D( 2,-1, 0), fence),
+		new Block(new Point3D( 0, 0, 0), numbers),
+		new Block(new Point3D( 1, 0, 0), numbers),
+		new Block(new Point3D( 2, 0, 0), numbers),
+		new Block(new Point3D( 0, 0, 1), grass),
+		new Block(new Point3D( 1, 0, 1), grass),
+		new Block(new Point3D( 2, 0, 1), grass),
+		new Block(new Point3D( 0, 1, 0), numbers),
+		new Block(new Point3D( 2, 1, 0), numbers),
+		new BlockLayout(new Point3D( 0,-1, 0), 25, [
+			new Block(new Point3D( 0, 3, 0), stone),
+			new Block(new Point3D( 0, 2, 0), stone),
+			new Block(new Point3D( 0, 1, 0), stone),
+			new Block(new Point3D( 0, 0, 0), stone),
+			new Block(new Point3D( 0, 0, 1), stone),
+			new Block(new Point3D( 0, 0, 2), stone),
+			new Block(new Point3D( 0, 0, 3), stone),
+			new Block(new Point3D( 0, 1, 3), stone),
+			new Block(new Point3D( 0, 2, 3), stone),
+			new Block(new Point3D( 0, 3, 3), stone)
+		])
+	]);
+
+	var env = this.env;
+	window.get = function(){
+		console.log(env.layout.items)
+	}
 
 	this.env.draw();
 
@@ -49,7 +67,7 @@ App.prototype.texturesLoaded = function(){
 	this.env.canvas.addEventListener("mousedown", this.handleMouseDown);
 	this.env.canvas.addEventListener("mousemove", this.handleMouseMove);
 	document.addEventListener("mouseup", this.handleMouseUp);
-}
+};
 
 App.prototype.handleKeyDown = function(event){
 
@@ -87,22 +105,22 @@ App.prototype.handleKeyDown = function(event){
 			}
 			break;
 	}
-}
+};
 
 App.prototype.handleMouseDown = function(event){
 	this.env.pointerDown = true;
 	event.preventDefault();
-}
+};
 
 App.prototype.handleMouseMove = function(event){
 	this.env.updatePointer( Mouse.get(event) );
 	event.preventDefault();
-}
+};
 
 App.prototype.handleMouseUp = function(event){
 	this.env.pointerDown = false;
 	event.preventDefault();
-}
+};
 
 
 /********************\
@@ -115,7 +133,6 @@ function Environment(canvasId){
 	this.context.imageSmoothingEnabled = false;
 
 	this.origin2D = new Point2D(this.canvas.width/2, this.canvas.height/2);
-	this.origin3D = new Point3D(-0.5, 0, -0.5);
 	this.viewTransform = new Matrix3D();
 
 	this.pointer = new Point2D(0,0);
@@ -125,6 +142,8 @@ function Environment(canvasId){
 	this.lastFacesUnderPointer = [];
 
 	this.layout = new BlockLayout(new Point3D(0,0,0), 100);
+	this.layout.origin3D.x = -0.5; 
+	this.layout.origin3D.z = -0.5;
 
 	this.faceTransforms = [];
 	this.visibleFaceIndices = [];
@@ -149,17 +168,12 @@ function Environment(canvasId){
 	this.tilt(2);
 
 	// constantly update
-	//this.onFrame();
+	this.onFrame();
 }
 
 Environment.isFaceFrontFacing = function(m){
 	return m.a*m.d - m.b*m.c > 0;
 };
-
-Environment.sortOnPlacedZ = function(a, b){
-	return a.placement.z - b.placement.z;
-};
-
 Environment.prototype.updatePointer = function(pt){
 	this.lastPointer.copy(this.pointer);
 	this.pointer.copy(pt);
@@ -234,13 +248,7 @@ Environment.prototype.commitViewTransform = function(){
 
 	var i = this.faceTransforms.length;
 	while (i--){
-		var transform = this.faceTransforms[i];
-
-		// TODO: incorporate into placement
-		//face.x = this.origin2D.x + face.x * this.scale;
-		//face.y = this.origin2D.y + face.y * this.scale;
-
-		if (Environment.isFaceFrontFacing(transform)){
+		if (Environment.isFaceFrontFacing( this.faceTransforms[i] )){
 			this.visibleFaceIndices.push(i);
 		}else{
 			this.hiddenFaceIndices.push(i);
@@ -249,15 +257,14 @@ Environment.prototype.commitViewTransform = function(){
 };
 
 Environment.prototype.drawBlockFace = function(face){
-	var m = this.getFaceTransform(face);
-	this.updateCanvasTransform(m);
 
 	// determine if face is under pointer
+	var m = face.transform.clone();
 	if (m.invert()){
 		var mousePt = this.pointer.clone();
 		m.transformPoint(mousePt);
-		if (mousePt.x > 0 && mousePt.x < this.scale && 
-			mousePt.y > 0 && mousePt.y < this.scale) {
+		if (mousePt.x > 0 && mousePt.x < face.block.scale && 
+			mousePt.y > 0 && mousePt.y < face.block.scale) {
 			this.facesUnderPointer.push(face);
 		}
 	}
@@ -266,23 +273,11 @@ Environment.prototype.drawBlockFace = function(face){
 	var texture = face.block.texture;
 	var rect = texture.getFaceRect(face.index);
 	if (rect){
-		console.log("face")
+		this.updateCanvasTransform(face.transform);
 		this.context.drawImage(texture.src, 
 			rect.x, rect.y, rect.width, rect.height,
-			0,0, this.scale, this.scale);
+			0,0, face.block.scale, face.block.scale);
 	}
-};
-
-Environment.prototype.getFaceTransform = function(face){
-	var m = this.faceTransforms[face.index].clone();
-
-		// TODO: incorporate into placement
-		//face.x = this.origin2D.x + face.x * this.scale;
-		//face.y = this.origin2D.y + face.y * this.scale;
-
-	m.x += face.block.placement.x;
-	m.y += face.block.placement.y;
-	return m;
 };
 
 Environment.prototype.updateCanvasTransform = function(m){
@@ -293,11 +288,11 @@ Environment.prototype.drawFocus = function(blocks){
 	// KLUDGE: this is just hacked in to show the origin
 	var m = this.faceTransforms[0];
 
-	var x = this.origin2D.x + m.x * this.layout.scale;
-	var y = this.origin2D.y + m.y * this.layout.scale;
+	var x = this.origin2D.x + m.x * this.layout.itemScale;
+	var y = this.origin2D.y + m.y * this.layout.itemScale;
 	this.context.setTransform(m.a, m.b, m.c, m.d, x, y);
 	this.context.beginPath();
-	this.context.arc(0,0, this.layout.scale/4, 0,Math.PI*2);
+	this.context.arc(0,0, this.layout.itemScale/4, 0,Math.PI*2);
 
 	this.context.fillStyle = "rgba(0,255,0,0.33)";
 	this.context.fill();
@@ -323,10 +318,9 @@ Environment.prototype.getPointerFace = function(list){
 Environment.prototype.highlightFace = function(face){
 	var fillStyle = "rgba(255,0,0,0.25)";
 
-	var m = this.getFaceTransform(face);
-	this.updateCanvasTransform(m);
+	this.updateCanvasTransform(face.transform);
 	this.context.fillStyle = fillStyle;
-	this.context.fillRect(0, 0, this.scale, this.scale);
+	this.context.fillRect(0, 0, face.block.scale, face.block.scale);
 };
 
 Environment.prototype.drawPointerLine = function(face){
@@ -342,13 +336,13 @@ Environment.prototype.drawPointerLine = function(face){
 		return;
 	}
 
-	var m = this.faceTransforms[face.index].clone();
-	var x = m.x + face.block.placement.x;
-	var y = m.y + face.block.placement.y;
-	m.scale(this.scale/texture.rect.width, this.scale/texture.rect.height);
-	m.x = x; // position is not scaled for the texture matrix
+	var m = face.transform.clone();
+	var x = m.x;
+	var y = m.y;
+	// block size to texture size scaling (not applied to translation)
+	m.scale(face.block.scale/texture.rect.width, face.block.scale/texture.rect.height);
+	m.x = x;
 	m.y = y;
-
 
 	if (m.invert()){
 		var movePt = this.lastPointer.clone();
@@ -357,7 +351,7 @@ Environment.prototype.drawPointerLine = function(face){
 		m.transformPoint(linePt);
 
 		// in case width != height, the values are averaged
-		var lineScaleFactor = (texture.rect.width + texture.rect.height)/(2 * this.scale);
+		var lineScaleFactor = (texture.rect.width + texture.rect.height)/(2 * face.block.scale);
 
 		c.lineWidth = lineWidth * lineScaleFactor;
 		c.lineCap = lineCap;
@@ -378,9 +372,9 @@ Environment.prototype.drawPointerLine = function(face){
 
 Environment.prototype.move = function(offX, offY, offZ){
 	// TODO: Animate?
-	this.origin3D.x += offX;
-	this.origin3D.y += offY;
-	this.origin3D.z += offZ;
+	this.layout.origin3D.x += offX;
+	this.layout.origin3D.y += offY;
+	this.layout.origin3D.z += offZ;
 };
 
 Environment.prototype.spin = function(offset){
@@ -412,16 +406,16 @@ Environment.prototype.tilt = function(offset){
 function BlockLayoutItem(loc){
 	this.location = loc;
 	this.placement = this.location.clone();
+	this.scale = 1;
 }
 
-BlockLayoutItem.prototype.resetPlacement = function(){
-};
-
-BlockLayoutItem.prototype.place = function(offset, viewTransform, scale){
+BlockLayoutItem.prototype.place = function(env, layout){
+	this.scale = layout.itemScale;
 	this.placement.copy(this.location);
-	this.placement.addPoint(offset);
-	viewTransform.transformPoint(this.placement);
-	this.placement.scale(scale);
+	this.placement.addPoint(layout.origin3D);
+	env.viewTransform.transformPoint(this.placement);
+	this.placement.scale(this.scale);
+	this.placement.addPoint(layout.placement);
 };
 
 BlockLayoutItem.prototype.draw = function(env){
@@ -429,16 +423,25 @@ BlockLayoutItem.prototype.draw = function(env){
 };
 
 
-function BlockLayout(loc, scale){
+function BlockLayout(loc, itemScale, items){
 	BlockLayoutItem.call(this, loc);
-	this.scale = scale || 100;
+	this.itemScale = itemScale || 100;
 	this.items = [];
+	if (items){
+		this.setItems(items);
+	}
+	this.origin3D = new Point3D(0, 0, 0);
 }
 BlockLayout.prototype = Object.create(BlockLayoutItem.prototype);
 
-BlockLayout.prototype.setItems = function(/* args */){
+
+BlockLayout.sortOnPlacedZ = function(a, b){
+	return a.placement.z - b.placement.z;
+};
+
+BlockLayout.prototype.setItems = function(items){
 	this.items.length = 0;
-	this.items.push.apply(this.items, arguments);
+	this.items.push.apply(this.items, items);
 };
 
 BlockLayout.prototype.draw = function(env){
@@ -448,11 +451,10 @@ BlockLayout.prototype.draw = function(env){
 
 BlockLayout.prototype.placeItems = function(env){
 	for (var i=0, n=this.items.length; i<n; i++){
-		this.items[i].place(this.placement, env.viewTransform, this.scale);
+		this.items[i].place(env, this);
 	}
-	this.items.sort(Environment.sortOnPlacedZ);
+	this.items.sort(BlockLayout.sortOnPlacedZ);
 };
-
 
 BlockLayout.prototype.drawItems = function(env){
 	for (var i=0, n=this.items.length; i<n; i++){
@@ -465,12 +467,12 @@ function Block(loc, texture){
 	BlockLayoutItem.call(this, loc);
 	this.texture = texture;
 	this.faces = [];
-	this.updateFaces();
+	this.generateFaces();
 }
 Block.prototype = Object.create(BlockLayoutItem.prototype);
 
-Block.prototype.updateFaces = function(){
-	var i = 6; // 6 sides to a block
+Block.prototype.generateFaces = function(){
+	var i = 6; // 6 faces to a block
 	while (i--){
 		if (this.texture.hasFace(i)){
 			this.faces[i] = new BlockFace(this, i);
@@ -478,27 +480,22 @@ Block.prototype.updateFaces = function(){
 	}
 };
 
-Block.prototype.place = function(offset, viewTransform, scale) {
-	BlockLayout.prototype.place.call(this, offset, viewTransform, scale);
+Block.prototype.place = function(env, layout) {
+	BlockLayout.prototype.place.call(this, env, layout);
 
 	var i = this.faces.length;
 	while (i--){
 		face = this.faces[i];
-		if (face){// TODO: need env
-			face.transform.copy( env.faceTransforms[face.index] );
-			var m = face.transform
-			
+		if (face){
 
-			// TODO: incorporate into placement
-			face.x = this.origin2D.x + face.x * this.scale;
-			face.y = this.origin2D.y + face.y * this.scale;
-
-			m.x += this.placement.x;
-			m.y += this.placement.y;
-					
+			var m = face.transform;
+			m.copy( env.faceTransforms[face.index] );
+			m.x = env.origin2D.x + this.placement.x + m.x * this.scale;
+			m.y = env.origin2D.y + this.placement.y + m.y * this.scale;	
 		}
 	}
-}
+};
+
 Block.prototype.draw = function(env){
 	if (this.texture.twoSided){
 		this.drawFaces(env, env.hiddenFaceIndices);
@@ -517,6 +514,7 @@ Block.prototype.drawFaces = function(env, indicesList){
 		}
 	}
 };
+
 
 function BlockTexture(src, rect, faceMapping, twoSided, allowEditable){
 	this.src = src;
