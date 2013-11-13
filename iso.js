@@ -135,7 +135,7 @@ function Environment(canvasId){
 	this.lastFacesUnderPointer = [];
 
 	this.layout = new BlockLayout(new Point3D(0,0,0), 100);
-	this.layout.origin3D.x = -0.5; 
+	this.layout.origin3D.x = -0.5; // center origin on top face of block 0,0,0
 	this.layout.origin3D.z = -0.5;
 
 	this.faceTransforms = [];
@@ -252,10 +252,10 @@ Environment.prototype.commitViewTransform = function(){
 Environment.prototype.drawBlockFace = function(face){
 
 	// determine if face is under pointer
-	var m = face.transform.clone();
-	if (m.invert()){
+	var faceAntiTransform = face.transform.clone();
+	if (faceAntiTransform.invert()){
 		var mousePt = this.pointer.clone();
-		m.transformPoint(mousePt);
+		faceAntiTransform.transformPoint(mousePt);
 		if (mousePt.x > 0 && mousePt.x < face.block.scale && 
 			mousePt.y > 0 && mousePt.y < face.block.scale) {
 			this.facesUnderPointer.push(face);
@@ -322,45 +322,47 @@ Environment.prototype.drawPointerLine = function(face){
 	var strokeStyle = "#000";
 
 	var texture = face.block.texture;
-	var c = texture.getDrawingContextForFace(face.index);
+	var faceContext = texture.getDrawingContextForFace(face.index);
 
-	if (!c){
+	if (!faceContext){
 		// drawing may not be allowed
 		return;
 	}
 
-	var m = face.transform.clone();
-	var x = m.x;
-	var y = m.y;
+	var faceTransform = face.transform.clone();
+	var x = faceTransform.x;
+	var y = faceTransform.y;
 	// block size to texture size scaling (not applied to translation)
-	m.scale(face.block.scale/texture.rect.width, face.block.scale/texture.rect.height);
-	m.x = x;
-	m.y = y;
+	var textureScaleX = face.block.scale/texture.rect.width;
+	var textureScaleY = face.block.scale/texture.rect.height;
+	faceTransform.scale(textureScaleX, textureScaleY);
+	faceTransform.x = x;
+	faceTransform.y = y;
 
-	if (m.invert()){
+	if (faceTransform.invert()){
 		var movePt = this.lastPointer.clone();
 		var linePt = this.pointer.clone();
-		m.transformPoint(movePt);
-		m.transformPoint(linePt);
+		faceTransform.transformPoint(movePt);
+		faceTransform.transformPoint(linePt);
 
 		// in case width != height, the values are averaged
 		var lineScaleFactor = (texture.rect.width + texture.rect.height)/(2 * face.block.scale);
 
-		c.lineWidth = lineWidth * lineScaleFactor;
-		c.lineCap = lineCap;
-		c.strokeStyle = strokeStyle;
+		faceContext.lineWidth = lineWidth * lineScaleFactor;
+		faceContext.lineCap = lineCap;
+		faceContext.strokeStyle = strokeStyle;
 
-		c.beginPath();
-		c.moveTo(movePt.x, movePt.y);
-		c.lineTo(linePt.x, linePt.y);
+		faceContext.beginPath();
+		faceContext.moveTo(movePt.x, movePt.y);
+		faceContext.lineTo(linePt.x, linePt.y);
 
-		c.stroke();
+		faceContext.stroke();
 	}
 
 	// getDrawingContextForFace saves the context because
 	// it clips, so the state should be popped from the
 	// stack when we're done with it
-	c.restore(); 
+	faceContext.restore(); 
 };
 
 Environment.prototype.move = function(offX, offY, offZ){
@@ -396,8 +398,8 @@ Environment.prototype.tilt = function(offset){
 };
 
 
-function BlockLayoutItem(loc){
-	this.location = loc;
+function BlockLayoutItem(location){
+	this.location = location;
 	this.placement = this.location.clone();
 	this.scale = 1;
 }
@@ -416,8 +418,8 @@ BlockLayoutItem.prototype.draw = function(env){
 };
 
 
-function BlockLayout(loc, itemScale, items){
-	BlockLayoutItem.call(this, loc);
+function BlockLayout(location, itemScale, items){
+	BlockLayoutItem.call(this, location);
 	this.itemScale = itemScale || 100;
 	this.items = [];
 	if (items){
@@ -456,16 +458,16 @@ BlockLayout.prototype.drawItems = function(env){
 };
 
 
-function Block(loc, texture){
-	BlockLayoutItem.call(this, loc);
+function Block(location, texture){
+	BlockLayoutItem.call(this, location);
 	this.texture = texture;
-	this.faces = [];
+	this.faces = [null,null,null,null,null,null];
 	this.generateFaces();
 }
 Block.prototype = Object.create(BlockLayoutItem.prototype);
 
 Block.prototype.generateFaces = function(){
-	var i = 6; // 6 faces to a block
+	var i = this.faces.length;
 	while (i--){
 		if (this.texture.hasFace(i)){
 			this.faces[i] = new BlockFace(this, i);
@@ -478,13 +480,11 @@ Block.prototype.place = function(env, layout) {
 
 	var i = this.faces.length;
 	while (i--){
-		face = this.faces[i];
+		var face = this.faces[i];
 		if (face){
-
-			var m = face.transform;
-			m.copy( env.faceTransforms[face.index] );
-			m.x = env.origin2D.x + this.placement.x + m.x * this.scale;
-			m.y = env.origin2D.y + this.placement.y + m.y * this.scale;	
+			face.transform.copy( env.faceTransforms[face.index] );
+			face.transform.x = env.origin2D.x + this.placement.x + face.transform.x * this.scale;
+			face.transform.y = env.origin2D.y + this.placement.y + face.transform.y * this.scale;	
 		}
 	}
 };
@@ -498,10 +498,9 @@ Block.prototype.draw = function(env){
 };
 
 Block.prototype.drawFaces = function(env, indicesList){
-	var face;
 	var i = indicesList.length;
 	while (i--){
-		face = this.faces[ indicesList[i] ];
+		var face = this.faces[ indicesList[i] ];
 		if (face){
 			env.drawBlockFace(face);
 		}
