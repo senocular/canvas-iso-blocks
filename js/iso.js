@@ -3,7 +3,7 @@
 /********************/
 
 function App(){
-	this.texturesURL = "sides.fw.png";
+	this.texturesURL = "img/sides.fw.png";
 	this.canvasId = "canvas";
 
 	this.textures = null;
@@ -27,9 +27,9 @@ App.prototype.texturesLoaded = function(){
 	this.env = new Environment(this.canvasId);
 
 	var numbers = new BlockTexture(this.textures, new Rect(0,0,100,100));
-	var fence = new BlockTexture(this.textures, new Rect(0,100,25,25), [null,null,0,null,0,null], true);
-	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2], false, false);
-	var stone = new BlockTexture(this.textures, new Rect(125,100,25,25), [0,1,1,1,0,0], false, false);
+	var fence = new BlockTexture(this.textures, new Rect(0,100,25,25), [null,null,0,null,0,null], BlockTexture.FACING_BOTH);
+	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2], BlockTexture.FACING_FRONT, false);
+	var stone = new BlockTexture(this.textures, new Rect(125,100,25,25), [0,1,1,1,0,0], BlockTexture.FACING_FRONT, false);
 
 	this.env.layout.setItems([
 		new Block(new Point3D( 1,-1, 0), fence),
@@ -490,11 +490,13 @@ Block.prototype.place = function(env, layout) {
 };
 
 Block.prototype.draw = function(env){
-	if (this.texture.twoSided){
+	if (this.texture.sidedness & BlockTexture.FACING_BACK){
 		this.drawFaces(env, env.hiddenFaceIndices);
 	}
 
-	this.drawFaces(env, env.visibleFaceIndices);
+	if (this.texture.sidedness & BlockTexture.FACING_FRONT){
+		this.drawFaces(env, env.visibleFaceIndices);
+	}
 };
 
 Block.prototype.drawFaces = function(env, indicesList){
@@ -508,13 +510,17 @@ Block.prototype.drawFaces = function(env, indicesList){
 };
 
 
-function BlockTexture(src, rect, faceMapping, twoSided, allowEditable){
+function BlockTexture(src, rect, faceMapping, sidedness, allowEditable){
 	this.src = src;
 	this.rect = rect; // of first face (0)
 	this.faceMapping = faceMapping || [0,1,2,3,4,5];
-	this.twoSided = twoSided || false;
+	this.sidedness = sidedness || BlockTexture.FACING_FRONT;
 	this.allowEditable = allowEditable == undefined ? true : allowEditable;
 }
+
+BlockTexture.FACING_FRONT = 1;
+BlockTexture.FACING_BACK = 2;
+BlockTexture.FACING_BOTH = 3;
 
 BlockTexture.prototype.hasFace = function(faceIndex){
 	return this.faceMapping[faceIndex] != null;
