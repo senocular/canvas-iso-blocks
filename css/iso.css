@@ -1,0 +1,31 @@
+body {
+	font-family: Helvetica, Arial, FreeSans, Clean, sans-serif;
+}
+canvas, aside {
+	float:left;
+	border:1px solid #AAA;
+}
+canvas {
+	margin:0 5px 5px 0;
+}
+aside {
+	padding:5px;
+}
+aside h3 {
+	margin:0;
+	padding:3px 8px;
+	background-color: #CCC;
+}
+dt, dd {
+	margin-top:5px;
+	margin-bottom:5px;
+}
+dt {
+	font-weight: bold;
+}
+dt kbd {
+	color: #666;
+	background-color: #EEE;
+	padding: 2px 3px;
+	border-radius: 3px;
+}
