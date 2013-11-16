@@ -56,6 +56,13 @@ Point3D.prototype.scale = function(n){
 	return this;
 };
 
+Point3D.prototype.scalePoint = function(pt3D){
+	this.x *= pt3D.x;
+	this.y *= pt3D.y;
+	this.z *= pt3D.z;
+	return this;
+};
+
 
 function Matrix2D(a,b,c,d,x,y){
 	if (arguments.length){
