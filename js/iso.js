@@ -31,6 +31,13 @@ App.prototype.texturesLoaded = function(){
 	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2], BlockTexture.FACING_FRONT, false);
 	var stone = new BlockTexture(this.textures, new Rect(125,100,25,25), [0,1,1,1,0,0], BlockTexture.FACING_FRONT, false);
 
+	this.test = 
+		new BlockLayout(new Point3D( 0, 0, 2), new Point3D(100,100/6,100/3), [
+			new Block(new Point3D( 0, 0, 0), numbers),
+			new Block(new Point3D( 0, 1, 1), numbers),
+			new Block(new Point3D( 0, 2, 2), numbers)
+		])
+
 	this.env.layout.setItems([
 		new Block(new Point3D( 1,-1, 0), fence),
 		new Block(new Point3D( 2,-1, 0), fence),
@@ -42,7 +49,7 @@ App.prototype.texturesLoaded = function(){
 		new Block(new Point3D( 2, 0, 1), grass),
 		new Block(new Point3D( 0, 1, 0), numbers),
 		new Block(new Point3D( 2, 1, 0), numbers),
-		new BlockLayout(new Point3D( 0,-1, 0), new Point3D(25,25,25), [
+		new BlockLayout(new Point3D( 0,-1, 0), 25, [
 			new Block(new Point3D( 0, 3, 0), stone),
 			new Block(new Point3D( 0, 2, 0), stone),
 			new Block(new Point3D( 0, 1, 0), stone),
@@ -53,7 +60,8 @@ App.prototype.texturesLoaded = function(){
 			new Block(new Point3D( 0, 1, 3), stone),
 			new Block(new Point3D( 0, 2, 3), stone),
 			new Block(new Point3D( 0, 3, 3), stone)
-		])
+		]),
+		this.test
 	]);
 	
 	document.addEventListener("keydown", this.handleKeyDown);
@@ -151,7 +159,7 @@ function Environment(canvasId){
 	this.spinAngle = 0; // actual angle of rotation
 
 	this.animateTilt = null;
-	this.tiltSteps = 5;
+	this.tiltSteps = 10;
 	this.tiltAngle = 0;
 	this.tiltValue = 0;
 
@@ -160,7 +168,7 @@ function Environment(canvasId){
 	// init
 	// TODO: don't animate init?
 	this.spin(0);
-	this.tilt(2);
+	this.tilt(7);
 
 	// constantly update
 	requestAnimationFrame(this.onFrame);
@@ -255,6 +263,8 @@ Environment.prototype.drawBlockFace = function(face){
 
 	// determine if face is under pointer
 	var faceAntiTransform = face.transform.clone();
+	faceAntiTransform.x += this.origin.x;
+	faceAntiTransform.y += this.origin.y;
 	if (faceAntiTransform.invert()){
 		var mousePt = this.pointer.clone();
 		faceAntiTransform.transformPoint(mousePt);
@@ -276,7 +286,7 @@ Environment.prototype.drawBlockFace = function(face){
 };
 
 Environment.prototype.updateCanvasTransform = function(m){
-	this.context.setTransform(m.a, m.b, m.c, m.d, m.x, m.y);
+	this.context.setTransform(m.a, m.b, m.c, m.d, this.origin.x + m.x, this.origin.y + m.y);
 };
 
 Environment.prototype.drawFocus = function(blocks){
@@ -332,6 +342,7 @@ Environment.prototype.drawPointerLine = function(face){
 		return;
 	}
 
+	// TODO: fix for variable-width blocks
 	var faceAntiTransform = face.transform.clone();
 	var x = faceAntiTransform.x;
 	var y = faceAntiTransform.y;
@@ -339,8 +350,8 @@ Environment.prototype.drawPointerLine = function(face){
 	var textureScaleX = face.size.x/texture.rect.width;
 	var textureScaleY = face.size.y/texture.rect.height;
 	faceAntiTransform.scale(textureScaleX, textureScaleY);
-	faceAntiTransform.x = x;
-	faceAntiTransform.y = y;
+	faceAntiTransform.x = this.origin.x + x;
+	faceAntiTransform.y = this.origin.y + y;
 
 	if (faceAntiTransform.invert()){
 		var movePt = this.lastPointer.clone();
@@ -383,7 +394,7 @@ Environment.prototype.spin = function(offset){
 	if (this.animateSpin){
 		this.animateSpin.stop();
 	}
-	var targetAngle = Math.PI/4 + this.spinValue * Math.PI/2;
+	var targetAngle = Math.PI/4 + this.spinValue * Math.PI/20;
 	this.animateSpin = new Animate(this, "spinAngle", targetAngle, this.transitionTime);
 };
 
@@ -398,7 +409,7 @@ Environment.prototype.tilt = function(offset){
 	if (this.animateTilt){
 		this.animateTilt.stop();
 	}
-	var targetAngle = -this.tiltValue * Math.PI/(2 * this.tiltSteps);
+	var targetAngle = Math.PI/2 - this.tiltValue * Math.PI/(this.tiltSteps);
 	this.animateTilt = new Animate(this, "tiltAngle", targetAngle, this.transitionTime);
 };
 
@@ -411,8 +422,8 @@ function BlockLayoutItem(location){
 BlockLayoutItem.prototype.place = function(env, layout){
 	this.placement.copy(this.location);
 	this.placement.addPoint(layout.origin);
-	env.viewTransform.transformPoint(this.placement);
 	this.placement.scalePoint(layout.itemSize);
+	env.viewTransform.transformPoint(this.placement);
 	this.placement.addPoint(layout.placement);
 };
 
@@ -423,7 +434,11 @@ BlockLayoutItem.prototype.draw = function(env){
 
 function BlockLayout(location, itemSize, items){
 	BlockLayoutItem.call(this, location);
-	this.itemSize = itemSize || new Point3D(100,100,100);
+	if (typeof itemSize === "number"){
+		this.itemSize = new Point3D(itemSize,itemSize,itemSize);
+	}else{
+		this.itemSize = itemSize || new Point3D(100,100,100);
+	}
 	this.items = [];
 	if (items){
 		this.setItems(items);
@@ -469,11 +484,20 @@ function Block(location, texture){
 }
 Block.prototype = Object.create(BlockLayoutItem.prototype);
 
+Block.faceLocations = [
+	new Point3D(0,0,0),
+	new Point3D(0,1,1),
+	new Point3D(0,0,1),
+	new Point3D(1,0,1),
+	new Point3D(1,0,0),
+	new Point3D(0,0,0)
+];
+
 Block.prototype.generateFaces = function(){
 	var i = this.faces.length;
 	while (i--){
 		if (this.texture.hasFace(i)){
-			this.faces[i] = new BlockFace(this, i);
+			this.faces[i] = new BlockFace(this, i, Block.faceLocations[i]);
 		}
 	}
 };
@@ -485,10 +509,7 @@ Block.prototype.place = function(env, layout) {
 	while (i--){
 		var face = this.faces[i];
 		if (face){
-			face.setSize(layout.itemSize);
-			face.transform.copy( env.faceTransforms[face.index] );
-			face.transform.x = env.origin.x + this.placement.x + face.transform.x * face.size.x;
-			face.transform.y = env.origin.y + this.placement.y + face.transform.y * face.size.y;	
+			face.place(env, layout);	
 		}
 	}
 };
@@ -605,35 +626,41 @@ BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, isClipped)
 };
 
 
-function BlockFace(block, index){
+function BlockFace(block, index, location){
 	this.block = block;
 	this.index = index;
+	this.location = location;
+	this.placement = this.location.clone(); // TODO: consolidate like-placements in same layout; size too?
 	this.size = new Point2D(100,100);
 	this.transform = new Matrix2D();
+};
+
+BlockFace.prototype.place = function(env, layout){
+	this.setSize(layout.itemSize);
+	this.transform.copy( env.faceTransforms[this.index] );
+
+	this.placement.copy(this.location);
+	this.placement.scalePoint(layout.itemSize);
+	env.viewTransform.transformPoint(this.placement); // TODO: reduce multiple, nested view transforms
+	this.placement.addPoint(this.block.placement);
+
+	this.transform.x = this.placement.x;
+	this.transform.y = this.placement.y;
 };
 
 BlockFace.prototype.setSize = function(blockSize){
 	switch (this.index){
 		case 0:
-			this.size.x = blockSize.x;
-			this.size.y = blockSize.z;
-			break;
 		case 1:
 			this.size.x = blockSize.x;
 			this.size.y = blockSize.z;
 			break;
 		case 2:
-			this.size.x = blockSize.x;
-			this.size.y = blockSize.y;
-			break;
-		case 3:
-			this.size.x = blockSize.z;
-			this.size.y = blockSize.y;
-			break;
 		case 4:
 			this.size.x = blockSize.x;
 			this.size.y = blockSize.y;
 			break;
+		case 3:
 		case 5:
 			this.size.x = blockSize.z;
 			this.size.y = blockSize.y;
