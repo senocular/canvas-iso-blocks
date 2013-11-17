@@ -340,10 +340,8 @@ Environment.prototype.drawPointerLine = function(face){
 	}
 
 	var faceAntiTransform = face.transform.clone();
-	var x = faceAntiTransform.x;
-	var y = faceAntiTransform.y;
-	faceAntiTransform.x = this.origin.x + x;
-	faceAntiTransform.y = this.origin.y + y;
+	faceAntiTransform.x += this.origin.x;
+	faceAntiTransform.y += this.origin.y;
 
 	if (faceAntiTransform.invert()){
 		// block size to texture size scaling (not applied to translation)
