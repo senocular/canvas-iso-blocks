@@ -31,13 +31,6 @@ App.prototype.texturesLoaded = function(){
 	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2], BlockTexture.FACING_FRONT, false);
 	var stone = new BlockTexture(this.textures, new Rect(125,100,25,25), [0,1,1,1,0,0], BlockTexture.FACING_FRONT, false);
 
-	this.test = 
-		new BlockLayout(new Point3D( 0, 0, 2), new Point3D(100,100/6,100/3), [
-			new Block(new Point3D( 0, 0, 0), numbers),
-			new Block(new Point3D( 0, 1, 1), numbers),
-			new Block(new Point3D( 0, 2, 2), numbers)
-		])
-
 	this.env.layout.setItems([
 		new Block(new Point3D( 1,-1, 0), fence),
 		new Block(new Point3D( 2,-1, 0), fence),
@@ -61,7 +54,11 @@ App.prototype.texturesLoaded = function(){
 			new Block(new Point3D( 0, 2, 3), stone),
 			new Block(new Point3D( 0, 3, 3), stone)
 		]),
-		this.test
+		new BlockLayout(new Point3D( 0, 0, 2), new Point3D(100,100/6,100/3), [
+			new Block(new Point3D( 0, 0, 0), numbers),
+			new Block(new Point3D( 0, 1, 1), numbers),
+			new Block(new Point3D( 0, 2, 2), numbers)
+		])
 	]);
 	
 	document.addEventListener("keydown", this.handleKeyDown);
@@ -342,18 +339,18 @@ Environment.prototype.drawPointerLine = function(face){
 		return;
 	}
 
-	// TODO: fix for variable-width blocks
 	var faceAntiTransform = face.transform.clone();
 	var x = faceAntiTransform.x;
 	var y = faceAntiTransform.y;
-	// block size to texture size scaling (not applied to translation)
-	var textureScaleX = face.size.x/texture.rect.width;
-	var textureScaleY = face.size.y/texture.rect.height;
-	faceAntiTransform.scale(textureScaleX, textureScaleY);
 	faceAntiTransform.x = this.origin.x + x;
 	faceAntiTransform.y = this.origin.y + y;
 
 	if (faceAntiTransform.invert()){
+		// block size to texture size scaling (not applied to translation)
+		var textureScaleX = texture.rect.width/face.size.x;
+		var textureScaleY = texture.rect.height/face.size.y;
+		faceAntiTransform.scale(textureScaleX, textureScaleY);
+
 		var movePt = this.lastPointer.clone();
 		var linePt = this.pointer.clone();
 		faceAntiTransform.transformPoint(movePt);
