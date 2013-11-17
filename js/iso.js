@@ -26,10 +26,18 @@ App.prototype.init = function(){
 App.prototype.texturesLoaded = function(){
 	this.env = new Environment(this.canvasId);
 
-	var numbers = new BlockTexture(this.textures, new Rect(0,0,100,100));
-	var fence = new BlockTexture(this.textures, new Rect(0,100,25,25), [null,null,0,null,0,null], BlockTexture.FACING_BOTH);
-	var grass = new BlockTexture(this.textures, new Rect(25,100,25,25), [0,1,3,3,2,2], BlockTexture.FACING_FRONT, false);
-	var stone = new BlockTexture(this.textures, new Rect(125,100,25,25), [0,1,1,1,0,0], BlockTexture.FACING_FRONT, false);
+	var numbers = new BlockTexture(this.textures, BlockTexture.cubeRects(new Rect(0,0,100,100)));
+	var fence = new BlockTexture(this.textures, BlockTexture.cubeRects(new Rect(0,100,25,25), [null,null,0,null,0,null]), BlockTexture.FACING_BOTH);
+	var grass = new BlockTexture(this.textures, BlockTexture.cubeRects(new Rect(25,100,25,25), [0,1,3,3,2,2]), BlockTexture.FACING_FRONT, false);
+	var stone = new BlockTexture(this.textures, BlockTexture.cubeRects(new Rect(125,100,25,25), [0,1,1,1,0,0]), BlockTexture.FACING_FRONT, false);
+	var steps = new BlockTexture(this.textures, [
+		new Rect(0,125,100,33),
+		new Rect(100,125,100,33),
+		new Rect(200,125,100,17),
+		new Rect(300,125,33,17),
+		new Rect(333,125,100,17),
+		new Rect(433,125,33,17)
+		], BlockTexture.FACING_FRONT, true);
 
 	this.env.layout.setItems([
 		new Block(new Point3D( 1,-1, 0), fence),
@@ -55,9 +63,9 @@ App.prototype.texturesLoaded = function(){
 			new Block(new Point3D( 0, 3, 3), stone)
 		]),
 		new BlockLayout(new Point3D( 0, 0, 2), new Point3D(100,100/6,100/3), [
-			new Block(new Point3D( 0, 0, 0), numbers),
-			new Block(new Point3D( 0, 1, 1), numbers),
-			new Block(new Point3D( 0, 2, 2), numbers)
+			new Block(new Point3D( 0, 0, 0), steps),
+			new Block(new Point3D( 0, 1, 1), steps),
+			new Block(new Point3D( 0, 2, 2), steps)
 		])
 	]);
 	
@@ -332,6 +340,7 @@ Environment.prototype.drawPointerLine = function(face){
 	var strokeStyle = "#000";
 
 	var texture = face.block.texture;
+	var textureRect = texture.getFaceRect(face.index);
 	var faceContext = texture.getDrawingContextForFace(face.index);
 
 	if (!faceContext){
@@ -345,8 +354,8 @@ Environment.prototype.drawPointerLine = function(face){
 
 	if (faceAntiTransform.invert()){
 		// block size to texture size scaling (not applied to translation)
-		var textureScaleX = texture.rect.width/face.size.x;
-		var textureScaleY = texture.rect.height/face.size.y;
+		var textureScaleX = textureRect.width/face.size.x;
+		var textureScaleY = textureRect.height/face.size.y;
 		faceAntiTransform.scale(textureScaleX, textureScaleY);
 
 		var movePt = this.lastPointer.clone();
@@ -355,7 +364,7 @@ Environment.prototype.drawPointerLine = function(face){
 		faceAntiTransform.transformPoint(linePt);
 
 		// in case width != height, the values are averaged
-		var textureFactor = Math.max(texture.rect.width + texture.rect.height);
+		var textureFactor = Math.max(textureRect.width + textureRect.height);
 		var faceFactor = Math.max(face.size.x + face.size.y);
 		var lineScaleFactor = textureFactor/faceFactor;
 
@@ -530,10 +539,13 @@ Block.prototype.drawFaces = function(env, indicesList){
 };
 
 
-function BlockTexture(src, rect, faceMapping, sidedness, allowEditable){
+function BlockTexture(src, rects, sidedness, allowEditable){
+	if (rects instanceof Array === false){
+		rects = [rects];
+	}
+
 	this.src = src;
-	this.rect = rect; // of first face (0)
-	this.faceMapping = faceMapping || [0,1,2,3,4,5];
+	this.rects = rects;
 	this.sidedness = sidedness || BlockTexture.FACING_FRONT;
 	this.allowEditable = allowEditable == undefined ? true : allowEditable;
 }
@@ -542,8 +554,25 @@ BlockTexture.FACING_FRONT = 1;
 BlockTexture.FACING_BACK = 2;
 BlockTexture.FACING_BOTH = 3;
 
+BlockTexture.cubeRects = function(rect, mapping){
+	if (!mapping){
+		mapping = [0,1,2,3,4,5];
+	}
+	var rects = [];
+	var i = 6;
+	while(i--){
+		var offset = mapping[i];
+		if (offset != null){
+			var faceRect = rect.clone();
+			faceRect.x +=  offset * rect.width;
+			rects[i] = faceRect;
+		}
+	}
+	return rects;
+}
+
 BlockTexture.prototype.hasFace = function(faceIndex){
-	return this.faceMapping[faceIndex] != null;
+	return this.rects[faceIndex] != null;
 };
 
 BlockTexture.prototype.getFaceRect = function(faceIndex){
@@ -551,9 +580,7 @@ BlockTexture.prototype.getFaceRect = function(faceIndex){
 		return null;
 	}
 
-	var faceRect = this.rect.clone();
-	faceRect.x += this.faceMapping[faceIndex] * this.rect.width;
-	return faceRect;
+	return this.rects[faceIndex].clone();
 };
 
 BlockTexture.prototype.enableEditable = function(){
@@ -569,22 +596,54 @@ BlockTexture.prototype.enableEditable = function(){
 
 	// copy src into editable canvas
 	var canvas = document.createElement("canvas");
-	canvas.width = this.rect.width * (1 + Math.max.apply(Math, this.faceMapping));
-	canvas.height = this.rect.height;
-
-	var context = canvas.getContext("2d");
-	context.imageSmoothingEnabled = false;
-	context.drawImage(this.src, 
-		this.rect.x, this.rect.y, canvas.width, canvas.height,
-		0, 0, canvas.width, canvas.height);
-	
-	// with independent canvas src, location
-	// of texture is reset to top left
-	this.rect.x = 0;
-	this.rect.y = 0;
+	var rectSize = this.getEditableTextureSize();
+	canvas.width = rectSize.x;
+	canvas.height = rectSize.y;
+	this.copyTexturesToEditable(canvas);
 
 	this.src = canvas;
 	return true;
+};
+
+BlockTexture.prototype.getEditableTextureSize = function(){
+	var totalWidth = 0;
+	var maxHeight = 0;
+
+	for (var i=0, n=this.rects.length; i<n; i++){
+		var rect = this.rects[i];
+		if (rect){
+			totalWidth += rect.width;
+			if (rect.height > maxHeight){
+				maxHeight = rect.height;
+			}
+		}
+	}
+
+	return new Point2D(totalWidth, maxHeight);
+};
+
+BlockTexture.prototype.copyTexturesToEditable = function(canvas){
+
+	var totalWidth = 0;
+	var context = canvas.getContext("2d");
+	context.imageSmoothingEnabled = false;
+
+	for (var i=0, n=this.rects.length; i<n; i++){
+		var rect = this.rects[i];
+		if (rect){
+
+			var x = totalWidth;
+			var y = 0;
+					
+			context.drawImage(this.src, 
+				rect.x, rect.y, rect.width, rect.height,
+				x, y, rect.width, rect.height);
+
+			rect.x = x;
+			rect.y = y
+			totalWidth += rect.width;
+		}
+	}
 };
 
 BlockTexture.prototype.getDrawingContextForFace = function(faceIndex, isClipped){
