@@ -355,9 +355,9 @@ Environment.prototype.drawPointerLine = function(face){
 		faceAntiTransform.transformPoint(linePt);
 
 		// in case width != height, the values are averaged
-		var textureAvg = (texture.rect.width + texture.rect.height)/2;
-		var faceAvg = (face.size.x + face.size.y)/2;
-		var lineScaleFactor = textureAvg/faceAvg;
+		var textureFactor = Math.max(texture.rect.width + texture.rect.height);
+		var faceFactor = Math.max(face.size.x + face.size.y);
+		var lineScaleFactor = textureFactor/faceFactor;
 
 		faceContext.lineWidth = lineWidth * lineScaleFactor;
 		faceContext.lineCap = lineCap;
