@@ -77,42 +77,59 @@ App.prototype.texturesLoaded = function(){
 
 App.prototype.handleKeyDown = function(event){
 
+	var preventDefault = false;
 	switch(event.keyCode){
+
+		case 33: // Page Up
+			this.env.moveY.adjust(1);
+			preventDefault = true;
+			break;
+
+		case 34: // Page Down
+			this.env.moveY.adjust(-1);
+			preventDefault = true;
+			break;
 
 		case 37: // Left
 			if (event.ctrlKey){
-				this.env.spin(1);
+				this.env.spin.adjust(1);
 			}else{
-				this.env.move(1, 0, 0);
+				this.env.moveX.adjust(1);
 			}
+			preventDefault = true;
 			break;
 
 		case 38: // Up
 			if (event.ctrlKey){
-				this.env.tilt(1);
+				this.env.tilt.adjust(1);
 			}else{
-				this.env.move(0, 0, 1);
+				this.env.moveZ.adjust(1);
 			}
+			preventDefault = true;
 			break;
 
 		case 39: // Right
 			if (event.ctrlKey){
-				this.env.spin(-1);
+				this.env.spin.adjust(-1);
 			}else{
-				this.env.move(-1, 0, 0);
+				this.env.moveX.adjust(-1);
 			}
+			preventDefault = true;
 			break;
 
 		case 40: // Down
 			if (event.ctrlKey){
-				this.env.tilt(-1);
+				this.env.tilt.adjust(-1);
 			}else{
-				this.env.move(0, 0, -1);
+				this.env.moveZ.adjust(-1);
 			}
+			preventDefault = true;
 			break;
 	}
 
-	event.preventDefault();
+	if (preventDefault){
+		event.preventDefault();
+	}
 };
 
 App.prototype.handleMouseDown = function(event){
@@ -150,8 +167,6 @@ function Environment(canvasId){
 	this.lastFacesUnderPointer = [];
 
 	this.layout = new BlockLayout();
-	this.layout.origin.x = -0.5; // center origin on top face of block 0,0,0
-	this.layout.origin.z = -0.5;
 
 	this.faceTransforms = [];
 	this.visibleFaceIndices = [];
@@ -159,24 +174,20 @@ function Environment(canvasId){
 
 	this.transitionTime = 100;
 	
-	this.animateSpin = null;
-	this.spinValue = 0; // value by which angle is based
-	this.spinAngle = 0; // actual angle of rotation
+	this.spin = new SpinMotion(100);
+	this.tilt = new TiltMotion(100);
+	this.moveX = new Motion(100);
+	this.moveY = new Motion(100);
+	this.moveZ = new Motion(100);
 
-	this.animateTilt = null;
-	this.tiltSteps = 10;
-	this.tiltAngle = 0;
-	this.tiltValue = 0;
-
-	this.onFrame = this.onFrame.bind(this);
+	this.onframe = this.onframe.bind(this);
 
 	// init
-	// TODO: don't animate init?
-	this.spin(0);
-	this.tilt(7);
+	this.tilt.adjust(7);
+	this.spin.adjust(0);
 
 	// constantly update
-	requestAnimationFrame(this.onFrame);
+	this.onframe();
 }
 
 Environment.isFaceFrontFacing = function(m){
@@ -187,26 +198,28 @@ Environment.prototype.updatePointer = function(pt){
 	this.pointer.copy(pt);
 };
 
-Environment.prototype.onFrame = function(){
+Environment.prototype.onframe = function(){
 	this.draw();
-	requestAnimationFrame(this.onFrame);
-};
-
-Environment.prototype.clearCanvas = function(){
-	this.context.setTransform(1,0,0,1,0,0);
-	this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-	this.lastFacesUnderPointer.length = 0;
-	this.lastFacesUnderPointer.push.apply(this.lastFacesUnderPointer, this.facesUnderPointer);
-	this.facesUnderPointer.length = 0;
+	requestAnimationFrame(this.onframe);
 };
 
 Environment.prototype.draw = function(){
 	this.clearCanvas();
 
+	this.tilt.stepFrame();
+	this.spin.stepFrame();
+
+	this.moveX.stepFrame();
+	this.moveY.stepFrame();
+	this.moveZ.stepFrame();
+	var movePt = new Point3D(this.moveX.value-0.5, this.moveY.value, this.moveZ.value-0.5); // -0.5 offset centers
+
 	this.viewTransform.identity();
-	this.viewTransform.rotateX(this.tiltAngle);
-	this.viewTransform.rotateY(this.spinAngle);
+	this.viewTransform.rotateX(this.tilt.value);
+	this.viewTransform.rotateY(this.spin.value);
 	this.commitViewTransform();
+
+	this.layout.origin.copy(movePt);
 
 	this.layout.draw(this);
 	this.drawFocus();
@@ -238,6 +251,14 @@ Environment.prototype.draw = function(){
 			this.drawPointerLine(lastTopFace);
 		}
 	}
+};
+
+Environment.prototype.clearCanvas = function(){
+	this.context.setTransform(1,0,0,1,0,0);
+	this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+	this.lastFacesUnderPointer.length = 0;
+	this.lastFacesUnderPointer.push.apply(this.lastFacesUnderPointer, this.facesUnderPointer);
+	this.facesUnderPointer.length = 0;
 };
 
 Environment.prototype.commitViewTransform = function(){
@@ -385,36 +406,82 @@ Environment.prototype.drawPointerLine = function(face){
 	faceContext.restore(); 
 };
 
-Environment.prototype.move = function(offX, offY, offZ){
-	// TODO: Animate?
-	this.layout.origin.x += offX;
-	this.layout.origin.y += offY;
-	this.layout.origin.z += offZ;
+
+function Motion(transitionTime){
+	this.transitionTime = transitionTime;
+
+	this.step = 0; // value by which angle is based
+	this.value = 0; // actual angle of rotation
+	this.animate = null;
+}
+
+Motion.prototype.adjust = function(offset){
+	this.updateStep(offset);
+
+	if (this.animate){
+		this.animate.stop();
+	}
+	
+	this.animate = new Animate(this, "value", this.getToValue(), this.transitionTime);
 };
 
-Environment.prototype.spin = function(offset){
-	this.spinValue += offset;
-
-	if (this.animateSpin){
-		this.animateSpin.stop();
-	}
-	var targetAngle = Math.PI/4 + this.spinValue * Math.PI/20;
-	this.animateSpin = new Animate(this, "spinAngle", targetAngle, this.transitionTime);
+Motion.prototype.updateStep = function(offset){
+	this.step += offset;
 };
 
-Environment.prototype.tilt = function(offset){
-	this.tiltValue += offset;
-	if (this.tiltValue < 0){
-		this.tiltValue = 0;
-	}else if (this.tiltValue > this.tiltSteps){
-		this.tiltValue = this.tiltSteps;
-	}
+Motion.prototype.getToValue = function(){
+	return this.step;
+};
 
-	if (this.animateTilt){
-		this.animateTilt.stop();
+Motion.prototype.stepFrame = function(){
+	if (this.animate){
+		this.animate.stepFrame();
+
+		if (!this.animate.isPlaying()){
+			this.animate = null;
+		}
 	}
-	var targetAngle = Math.PI/2 - this.tiltValue * Math.PI/(this.tiltSteps);
-	this.animateTilt = new Animate(this, "tiltAngle", targetAngle, this.transitionTime);
+};
+
+Motion.prototype.stepFrame = function(){
+	if (this.animate){
+		this.animate.stepFrame();
+
+		if (!this.animate.isPlaying()){
+			this.animate = null;
+		}
+	}
+};
+
+
+function SpinMotion(transitionTime){
+	Motion.call(this, transitionTime);
+}
+SpinMotion.prototype = Object.create(Motion.prototype);
+
+SpinMotion.prototype.getToValue = function(offset){
+	return Math.PI/4 + this.step * Math.PI/10;
+};
+
+
+function TiltMotion(transitionTime){
+	Motion.call(this, transitionTime);
+	this.totalSteps = 10; // positions between end points
+}
+TiltMotion.prototype = Object.create(Motion.prototype);
+
+TiltMotion.prototype.updateStep = function(offset){
+	var newStep = this.step + offset;
+	if (newStep < 0){
+		newStep = 0;
+	}else if (newStep > this.totalSteps){
+		newStep = this.totalSteps;
+	}
+	this.step = newStep;
+};
+
+TiltMotion.prototype.getToValue = function(){
+	return Math.PI/2 - this.step * Math.PI/(this.totalSteps);
 };
 
 

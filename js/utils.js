@@ -5,45 +5,45 @@ function Animate(target, property, toValue, duration){
 	this.toValue = toValue;
 	this.valueRange = this.toValue - this.fromValue;
 	this.duration = duration;
+	this.progress = 0;
 	this.startTime = Date.now();
 	this.endTime = this.startTime + this.duration;
-	this.onstep = null;
+	this.onframe = null;
 	this.oncomplete = null;
-	this.update = this.update.bind(this);
-	this.update(); // start upon creation
 }
 
 Animate.prototype.stop = function(){
 	this.endTime = -1;
-	this.onstep = null;
-	this.oncomplete = null;
 };
 
-Animate.prototype.update = function(){
+Animate.prototype.isPlaying = function(){
+	return this.endTime !== -1;
+};
+
+Animate.prototype.stepFrame = function(){
+	if (!this.isPlaying()){
+		return; // stopped
+	}
 
 	var currTime = Date.now();
 	if (currTime > this.endTime){
-		if (this.endTime === -1){
-			return; // stopped
-		}
 		currTime = this.endTime;
 	}
 
-	var progress = (currTime - this.startTime)/this.duration;
-	progress = Math.sqrt(progress); // easing
+	this.progress = (currTime - this.startTime)/this.duration;
+	this.progress = Math.sqrt(this.progress); // easing
 
-	this.target[this.property] = this.fromValue + progress * this.valueRange;
+	this.target[this.property] = this.fromValue + this.progress * this.valueRange;
 
-	if (this.onstep){
-		this.onstep(this);
+	if (this.onframe){
+		this.onframe(this);
 	}
 
 	if (currTime === this.endTime){
 		if (this.oncomplete){
 			this.oncomplete(this);
 		}
-	}else{
-		requestAnimationFrame(this.update);
+		this.stop();
 	}
 };
 

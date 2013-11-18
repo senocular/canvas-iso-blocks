@@ -31,6 +31,14 @@ function Point3D(x,y,z){
 	this.z = z || 0;
 }
 
+Point3D.interpolate = function(a, b, progress){
+	return new Point2D(
+		a.x + (b.x - a.x) * progress,
+		a.y + (b.y - a.y) * progress,
+		a.z + (b.z - a.z) * progress
+	);
+}
+
 Point3D.prototype.clone = function(){
 	return new Point3D(this.x, this.y, this.z);
 };
