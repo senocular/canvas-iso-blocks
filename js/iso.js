@@ -38,6 +38,15 @@ App.prototype.texturesLoaded = function(){
 		new Rect(333,125,100,17),
 		new Rect(433,125,33,17)
 		], BlockTexture.FACING_FRONT, true);
+	var tree = new BlockTexture(this.textures, BlockTexture.cubeRects(new Rect(500,100,50,50), [0,1,1,1,0,0]), BlockTexture.FACING_FRONT, false);
+	var treeClean = new BlockTexture(this.textures, [
+		null,
+		null,
+		new Rect(551,101,48,48),
+		new Rect(551,101,48,48),
+		new Rect(501,101,48,48),
+		new Rect(501,101,48,48)
+		], BlockTexture.FACING_FRONT, false);
 
 	this.env.layout.setItems([
 		new Block(new Point3D( 1,-1, 0), fence),
@@ -50,7 +59,7 @@ App.prototype.texturesLoaded = function(){
 		new Block(new Point3D( 2, 0, 1), grass),
 		new Block(new Point3D( 0, 1, 0), numbers),
 		new Block(new Point3D( 2, 1, 0), numbers),
-		new BlockLayout(new Point3D( 0,-1, 0), 25, [
+		new BlockLayout(new Point3D( 0,-1, 0), 25, [ // archway
 			new Block(new Point3D( 0, 3, 0), stone),
 			new Block(new Point3D( 0, 2, 0), stone),
 			new Block(new Point3D( 0, 1, 0), stone),
@@ -62,11 +71,14 @@ App.prototype.texturesLoaded = function(){
 			new Block(new Point3D( 0, 2, 3), stone),
 			new Block(new Point3D( 0, 3, 3), stone)
 		]),
-		new BlockLayout(new Point3D( 0, 0, 2), new Point3D(100,100/6,100/3), [
+		new BlockLayout(new Point3D( 0, 0, 2), new Point3D(100,100/6,100/3), [ // steps
 			new Block(new Point3D( 0, 0, 0), steps),
 			new Block(new Point3D( 0, 1, 1), steps),
 			new Block(new Point3D( 0, 2, 2), steps)
-		])
+		]),
+		new Block(new Point3D( 0,-1, 1), tree),
+		new CrossBlock(new Point3D( 1,-1, 1), tree),
+		new CrossBlock(new Point3D( 2,-1, 1), treeClean)
 	]);
 	
 	document.addEventListener("keydown", this.handleKeyDown);
@@ -460,7 +472,7 @@ function SpinMotion(transitionTime){
 SpinMotion.prototype = Object.create(Motion.prototype);
 
 SpinMotion.prototype.getToValue = function(offset){
-	return Math.PI/4 + this.step * Math.PI/10;
+	return Math.PI/4 + this.step * Math.PI/8;
 };
 
 
@@ -517,7 +529,6 @@ function BlockLayout(location, itemSize, items){
 	this.origin = new Point3D(0,0,0);
 }
 BlockLayout.prototype = Object.create(BlockLayoutItem.prototype);
-
 
 BlockLayout.sortOnPlacedZ = function(a, b){
 	return a.placement.z - b.placement.z;
@@ -603,6 +614,105 @@ Block.prototype.drawFaces = function(env, indicesList){
 			env.drawBlockFace(face);
 		}
 	}
+};
+
+
+function CrossBlock(location, texture){
+	var items = CrossBlock.generateItems(texture);
+	BlockLayout.call(this, location, null, items);
+}
+CrossBlock.prototype = Object.create(BlockLayout.prototype);
+
+CrossBlock.subLocations = [
+	new Point3D(0,0,0),
+	new Point3D(1,0,0),
+	new Point3D(0,0,1),
+	new Point3D(1,0,1),
+	new Point3D(0,1,0),
+	new Point3D(1,1,0),
+	new Point3D(0,1,1),
+	new Point3D(1,1,1)
+];
+
+CrossBlock.subFaces = [
+	[0,1,1,1,0,0],
+	[0,1,1,0,0,1],
+	[0,1,0,1,1,0],
+	[0,1,0,0,1,1],
+	[1,0,1,1,0,0],
+	[1,0,1,0,0,1],
+	[1,0,0,1,1,0],
+	[1,0,0,0,1,1]
+];
+
+CrossBlock.generateItems = function(texture){
+	var items = [];
+	var i = CrossBlock.subLocations.length;
+	while (i--){
+		items[i] = CrossBlock.generateBlock(i, texture);
+	}
+	return items;
+};
+
+CrossBlock.generateBlock = function(blockIndex, texture){
+	var loc = CrossBlock.subLocations[blockIndex].clone();
+	var rects = [];
+	var i = 6;
+	while (i--){
+		if (CrossBlock.subFaces[blockIndex][i] && texture.hasFace(i)){
+			rects[i] = CrossBlock.generateRect(blockIndex, loc, i, texture);
+		}
+	}
+
+	if (rects.length){
+		// TODO: making multiple cross blocks creates redundant textures. Store these in source texture?
+		var subTexture = new BlockTexture(texture.src, rects, BlockTexture.FACING_FRONT, texture.allowEditable);
+		return new Block(loc, subTexture)
+	}
+
+	return null;
+};
+
+CrossBlock.generateRect = function(blockIndex, location, faceIndex, texture){
+	var rect = texture.getFaceRect(faceIndex).clone();
+	rect.width = Math.floor(rect.width/2);
+	rect.height = Math.floor(rect.height/2);
+
+	var dx = 0;
+	var dy = 0;
+
+	if (faceIndex < 2){ // top & bottom
+
+		dx = location.x;
+		dy = (faceIndex === 0) ? location.z : 1 - location.z;
+
+	}else{ // sides
+
+		dx = (faceIndex % 2) ? location.z : location.x;
+		if (faceIndex === 3 || faceIndex === 4){
+			dx = 1 - dx;
+		}
+
+		dy = location.y;
+	}
+
+	if (dx){
+		rect.x += dx * rect.width;
+	}
+	if (dy){
+		rect.y += dy * rect.height;
+	}
+
+	return rect;
+};
+
+CrossBlock.prototype.place = function(env, layout){
+	// when placed, we'll know the size of our parent
+	// layout and then we can be sure to set our size
+	// to half of that (does not know in constuction)
+	this.itemSize.copy(layout.itemSize);
+	this.itemSize.scale(0.5);
+	BlockLayout.prototype.place.call(this, env, layout);
 };
 
 
